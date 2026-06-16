@@ -1,22 +1,15 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
 import time
 import re
 import json
 import os
 import datetime
 from collections import defaultdict, deque
-from typing import Optional
 
 AUTOMOD_FILE = "automod_config.json"
 OFFENCES_FILE = "automod_offences.json"
-TEST_USER_IDS: set[int] = set()
-AUTOMOD_BLOCKED_MESSAGES: set[int] = set()
 
-def alog(*args):
-    ts = datetime.datetime.now().strftime("%H:%M:%S")
-    print(f"[AUTOMOD {ts}]", *args)
+_ADMIN_USER_IDS: set[str] = set()
+
 
 def _load_json(path: str, default):
     if not os.path.exists(path):
@@ -24,8 +17,9 @@ def _load_json(path: str, default):
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except:
+    except Exception:
         return default
+
 
 def _save_json(path: str, data):
     tmp = path + ".tmp"
@@ -33,26 +27,25 @@ def _save_json(path: str, data):
         json.dump(data, f, indent=2, ensure_ascii=False)
     os.replace(tmp, path)
 
+
 AUTOMOD_DATA = _load_json(AUTOMOD_FILE, {})
 
-def load_offences():
-    raw = _load_json(OFFENCES_FILE, {})
-    out: dict[int, dict[int, int]] = {}
-    try:
-        for gid, users in raw.items():
-            g = int(gid)
-            out[g] = {}
-            for uid, v in users.items():
-                out[g][int(uid)] = int(v)
-    except:
-        return {}
-    return out
-
-def save_offences(offences: dict[int, dict[int, int]]):
-    _save_json(OFFENCES_FILE, {str(g): {str(u): v for u, v in users.items()} for g, users in offences.items()})
 
 def save_automod():
     _save_json(AUTOMOD_FILE, AUTOMOD_DATA)
+
+
+def load_offences():
+    raw = _load_json(OFFENCES_FILE, {})
+    out: dict[str, dict[str, int]] = {}
+    for ws, users in raw.items():
+        out[ws] = {uid: int(v) for uid, v in users.items()}
+    return out
+
+
+def save_offences(offences: dict[str, dict[str, int]]):
+    _save_json(OFFENCES_FILE, offences)
+
 
 def censor_word(w: str) -> str:
     if not w:
@@ -61,43 +54,34 @@ def censor_word(w: str) -> str:
         return w[0] + "*" * (len(w) - 1)
     return w[:-3] + "***"
 
-def has_mod_perms(member: discord.Member) -> bool:
-    if member.id in TEST_USER_IDS:
-        return False
-    gp = member.guild_permissions
-    return gp.manage_messages or gp.administrator or member == member.guild.owner
 
 _invite_re = re.compile(r"(?:discord\.gg|discord(?:app)?\.com\/invite)\/[A-Za-z0-9\-]+", re.I)
 _url_re = re.compile(r"https?:\/\/\S+|www\.\S+", re.I)
-_zalgo_re = re.compile(r"[\u0300-\u036f\u0483-\u0489\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06dc\u06df-\u06e4\u06e7-\u06e8\u06ea-\u06ed]+")
+_zalgo_re = re.compile(r"[̀-ͯ҃-҉ؐ-ًؚ-ٰٟۖ-ۜ۟-ۤۧ-۪ۨ-ۭ]+")
 _ws_re = re.compile(r"\s+")
 _non_alnum_space_re = re.compile(r"[^a-z0-9\s]")
 _repeat_re = re.compile(r"(.)\1{2,}")
+
 
 class AutoModEngine:
     def __init__(self):
         self.msg_times = defaultdict(lambda: deque(maxlen=64))
         self.msg_norms = defaultdict(lambda: deque(maxlen=16))
-        self.offences = defaultdict(lambda: defaultdict(int))
-        self.last_punish = defaultdict(float)
+        self.offences: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+        self.last_punish: dict[tuple, float] = {}
         loaded = load_offences()
-        for gid, users in loaded.items():
+        for ws, users in loaded.items():
             for uid, v in users.items():
-                self.offences[gid][uid] = v
+                self.offences[ws][uid] = v
 
-    def get_cfg(self, guild_id: int) -> dict:
-        gid = str(guild_id)
-        if gid not in AUTOMOD_DATA:
-            AUTOMOD_DATA[gid] = {}
-        cfg = AUTOMOD_DATA[gid]
-
+    def get_cfg(self, workspace_id: str) -> dict:
+        if workspace_id not in AUTOMOD_DATA:
+            AUTOMOD_DATA[workspace_id] = {}
+        cfg = AUTOMOD_DATA[workspace_id]
         cfg.setdefault("enabled", False)
         cfg.setdefault("slurs", [])
-        cfg.setdefault("punishments", {"1": "warn", "2": "timeout:5", "3": "kick", "4": "ban"})
-        cfg.setdefault("delete", True)
-        cfg.setdefault("log", False)
+        cfg.setdefault("punishments", {"1": "warn", "2": "warn", "3": "warn", "4": "warn"})
         cfg.setdefault("cooldown_seconds", 10)
-
         cfg.setdefault("spam", {})
         spam = cfg["spam"]
         spam.setdefault("window_seconds", 6)
@@ -109,12 +93,10 @@ class AutoModEngine:
         spam.setdefault("caps_min_len", 12)
         spam.setdefault("max_zalgo_marks", 12)
         spam.setdefault("repeat_char_limit", 8)
-
         cfg.setdefault("filters", {})
         flt = cfg["filters"]
         flt.setdefault("block_invites", False)
         flt.setdefault("block_links", False)
-
         save_automod()
         return cfg
 
@@ -129,383 +111,245 @@ class AutoModEngine:
     def _count_links(self, content: str) -> int:
         return len(_url_re.findall(content))
 
-    def _count_mentions(self, message: discord.Message) -> int:
-        c = len(message.mentions) + len(message.role_mentions)
-        if message.mention_everyone:
-            c += 10
-        return c
+    def _count_mentions(self, content: str) -> int:
+        return len(re.findall(r"<@[A-Z0-9]+>", content)) + len(re.findall(r"<!channel>|<!here>|<!everyone>", content)) * 10
 
     def _caps_ratio(self, content: str) -> float:
         letters = [ch for ch in content if ch.isalpha()]
         if not letters:
             return 0.0
-        caps = sum(1 for ch in letters if ch.isupper())
-        return caps / max(1, len(letters))
+        return sum(1 for ch in letters if ch.isupper()) / len(letters)
 
     def _zalgo_marks(self, content: str) -> int:
         return len(_zalgo_re.findall(content))
 
     def _repeat_char_run(self, content: str) -> int:
-        m = re.findall(r"(.)\1+", content)
-        if not m:
-            return 0
-        longest = 0
-        cur = 1
-        last = ""
+        longest = 0; cur = 1; last = ""
         for ch in content:
-            if ch == last:
-                cur += 1
-            else:
-                longest = max(longest, cur)
-                cur = 1
-                last = ch
-        longest = max(longest, cur)
-        return longest
+            if ch == last: cur += 1
+            else: longest = max(longest, cur); cur = 1; last = ch
+        return max(longest, cur)
 
-    def contains_slur(self, text: str, slurs: list[str]) -> Optional[str]:
+    def contains_slur(self, text: str, slurs: list) -> str | None:
         lowered = self.normalize(text)
         for s in slurs:
-            if not s:
-                continue
-            pat = rf"\b{re.escape(s.lower())}\b"
-            if re.search(pat, lowered):
+            if not s: continue
+            if re.search(rf"\b{re.escape(s.lower())}\b", lowered):
                 return s
         return None
 
-    def _record(self, guild_id: int, user_id: int, norm: str):
-        now = time.time()
-        key = (guild_id, user_id)
-        self.msg_times[key].append(now)
+    def _record(self, workspace_id: str, user_id: str, norm: str):
+        key = (workspace_id, user_id)
+        self.msg_times[key].append(time.time())
         self.msg_norms[key].append(norm)
 
-    def _rate_spam(self, cfg: dict, guild_id: int, user_id: int) -> bool:
-        now = time.time()
-        key = (guild_id, user_id)
+    def _rate_spam(self, cfg: dict, workspace_id: str, user_id: str) -> bool:
+        key = (workspace_id, user_id)
         window = float(cfg["spam"]["window_seconds"])
         max_msgs = int(cfg["spam"]["max_messages"])
-        times = self.msg_times[key]
-        recent = 0
-        for t in reversed(times):
-            if now - t <= window:
-                recent += 1
-            else:
-                break
-        return recent >= max_msgs
+        now = time.time()
+        return sum(1 for t in self.msg_times[key] if now - t <= window) >= max_msgs
 
-    def _duplicate_spam(self, cfg: dict, guild_id: int, user_id: int, norm: str) -> bool:
-        key = (guild_id, user_id)
-        need = int(cfg["spam"]["duplicate_count"])
-        norms = self.msg_norms[key]
-        return norms.count(norm) >= need
+    def _duplicate_spam(self, cfg: dict, workspace_id: str, user_id: str, norm: str) -> bool:
+        key = (workspace_id, user_id)
+        return list(self.msg_norms[key]).count(norm) >= int(cfg["spam"]["duplicate_count"])
 
-    def _signal_checks(self, cfg: dict, message: discord.Message) -> Optional[str]:
-        content = message.content or ""
+    def _signal_checks(self, cfg: dict, content: str) -> str | None:
         if cfg["filters"]["block_invites"] and _invite_re.search(content):
             return "invite link"
         if cfg["filters"]["block_links"] and _url_re.search(content):
             return "link"
-        if self._count_mentions(message) >= int(cfg["spam"]["max_mentions"]):
+        if self._count_mentions(content) >= int(cfg["spam"]["max_mentions"]):
             return "mention spam"
         if self._count_links(content) >= int(cfg["spam"]["max_links"]):
             return "link spam"
         if len(content) >= int(cfg["spam"]["caps_min_len"]) and self._caps_ratio(content) >= float(cfg["spam"]["caps_ratio"]):
             return "excessive caps"
         if self._zalgo_marks(content) >= int(cfg["spam"]["max_zalgo_marks"]):
-            return "zalgo / combining marks"
+            return "zalgo marks"
         if self._repeat_char_run(content) >= int(cfg["spam"]["repeat_char_limit"]):
             return "character spam"
         return None
 
-    async def handle_message(self, message: discord.Message) -> bool:
-        if not message.guild or message.author.bot:
-            return False
-        if not isinstance(message.author, discord.Member):
-            return False
-        if has_mod_perms(message.author):
-            return False
-
-        cfg = self.get_cfg(message.guild.id)
+    async def handle_message(self, workspace_id: str, user_id: str, content: str) -> str | None:
+        cfg = self.get_cfg(workspace_id)
         if not cfg.get("enabled", False):
-            return False
-
-        content = message.content or ""
+            return None
         norm = self.normalize(content)
-        self._record(message.guild.id, message.author.id, norm)
-
-        if self._rate_spam(cfg, message.guild.id, message.author.id):
-            AUTOMOD_BLOCKED_MESSAGES.add(message.id)
-            await self.punish(message, "spam (rate)")
-            return True
-
-        if norm and self._duplicate_spam(cfg, message.guild.id, message.author.id, norm):
-            AUTOMOD_BLOCKED_MESSAGES.add(message.id)
-            await self.punish(message, "spam (duplicate)")
-            return True
-
-        sig = self._signal_checks(cfg, message)
+        self._record(workspace_id, user_id, norm)
+        if self._rate_spam(cfg, workspace_id, user_id):
+            return await self.punish(workspace_id, user_id, "spam (rate)", cfg)
+        if norm and self._duplicate_spam(cfg, workspace_id, user_id, norm):
+            return await self.punish(workspace_id, user_id, "spam (duplicate)", cfg)
+        sig = self._signal_checks(cfg, content)
         if sig:
-            AUTOMOD_BLOCKED_MESSAGES.add(message.id)
-            await self.punish(message, sig)
-            return True
-
+            return await self.punish(workspace_id, user_id, sig, cfg)
         slur = self.contains_slur(content, cfg.get("slurs", []))
         if slur:
-            AUTOMOD_BLOCKED_MESSAGES.add(message.id)
-            await self.punish(message, f"slur ({censor_word(slur)})")
-            return True
+            return await self.punish(workspace_id, user_id, f"slur ({censor_word(slur)})", cfg)
+        return None
 
-        return False
-
-    async def punish(self, message: discord.Message, reason: str):
+    async def punish(self, workspace_id: str, user_id: str, reason: str, cfg: dict) -> str | None:
         now = time.time()
-        guild = message.guild
-        user = message.author
-        gid = guild.id
-        uid = user.id
-
-        cfg = self.get_cfg(gid)
         cd = float(cfg.get("cooldown_seconds", 10))
-        last = self.last_punish.get((gid, uid), 0.0)
-        if now - last < cd:
-            return
-        self.last_punish[(gid, uid)] = now
+        key = (workspace_id, user_id)
+        if now - self.last_punish.get(key, 0.0) < cd:
+            return None
+        self.last_punish[key] = now
+        self.offences[workspace_id][user_id] = self.offences[workspace_id].get(user_id, 0) + 1
+        level = int(self.offences[workspace_id][user_id])
+        save_offences({ws: dict(users) for ws, users in self.offences.items()})
+        action = cfg.get("punishments", {}).get(str(level), "warn")
+        return f":rotating_light: <@{user_id}> automod action level {level} — {reason}. ({action})"
 
-        self.offences[gid][uid] += 1
-        level = int(self.offences[gid][uid])
-        save_offences({g: dict(users) for g, users in self.offences.items()})
-
-        action = cfg.get("punishments", {}).get(str(level))
-        alog("PUNISH", f"guild={gid}", f"user={uid}", f"level={level}", f"action={action}", f"reason={reason}")
-
-        if cfg.get("delete", True):
-            try:
-                await message.delete()
-            except:
-                pass
-
-        if not action:
-            return
-
-        if action == "warn":
-            try:
-                await message.channel.send(f"{user.mention} warning: stop ({reason}).")
-            except:
-                pass
-            return
-
-        if action.startswith("timeout:"):
-            try:
-                minutes = int(action.split(":", 1)[1])
-            except:
-                minutes = 5
-            try:
-                await user.timeout(datetime.timedelta(minutes=minutes), reason=f"automod: {reason}")
-            except:
-                pass
-            try:
-                await message.channel.send(f"{user.mention} muted for {minutes} minutes. reason: {reason}.")
-            except:
-                pass
-            return
-
-        if action == "kick":
-            try:
-                await guild.kick(user, reason=f"automod: {reason}")
-            except:
-                return
-            try:
-                await message.channel.send(f"🚪 **{user} was kicked** due to **{reason}**.")
-            except:
-                pass
-            return
-
-        if action == "ban":
-            try:
-                await guild.ban(user, reason=f"automod: {reason}", delete_message_days=0)
-            except:
-                return
-            try:
-                await message.channel.send(f"🔨 **{user} was banned** due to **{reason}**.")
-            except:
-                pass
-            return
 
 ENGINE = AutoModEngine()
 
-class AutoModCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.engine = ENGINE
 
-    @app_commands.command(name="automod", description="Enable or disable automod")
-    @app_commands.describe(mode="on or off")
-    async def automod(self, interaction: discord.Interaction, mode: str):
-        if not interaction.guild:
-            return await interaction.response.send_message("guild only", ephemeral=True)
-        if not isinstance(interaction.user, discord.Member) or not has_mod_perms(interaction.user):
-            return await interaction.response.send_message("you dont have permission to do that", ephemeral=True)
-        cfg = self.engine.get_cfg(interaction.guild.id)
-        cfg["enabled"] = (mode or "").lower() == "on"
+async def setup(app):
+
+    @app.event("message")
+    async def automod_message(event, say, client):
+        uid = event.get("user")
+        if not uid or event.get("bot_id") or event.get("subtype"):
+            return
+        workspace_id = event.get("team") or "default"
+        content = event.get("text") or ""
+        if not content:
+            return
+        result = await ENGINE.handle_message(workspace_id, uid, content)
+        if result:
+            try:
+                await client.chat_postMessage(channel=event["channel"], text=result)
+            except Exception:
+                pass
+
+    @app.command("/automod")
+    async def automod_toggle(ack, command, respond):
+        await ack()
+        workspace_id = command.get("team_id") or "default"
+        mode = (command.get("text") or "").strip().lower()
+        cfg = ENGINE.get_cfg(workspace_id)
+        cfg["enabled"] = mode == "on"
         save_automod()
-        await interaction.response.send_message(f"automod {'enabled' if cfg['enabled'] else 'disabled'}")
+        await respond(text=f"automod {'enabled' if cfg['enabled'] else 'disabled'}")
 
-    @app_commands.command(name="automod_reset", description="Reset automod offence points for a user")
-    @app_commands.describe(user="User to reset automod points for")
-    async def automod_reset(self, interaction: discord.Interaction, user: discord.Member):
-        if not interaction.guild:
-            return await interaction.response.send_message("guild only", ephemeral=True)
-        if not isinstance(interaction.user, discord.Member) or not has_mod_perms(interaction.user):
-            return await interaction.response.send_message("you dont have permission to do that", ephemeral=True)
-
-        gid = interaction.guild.id
-        uid = user.id
-
-        if gid in self.engine.offences and uid in self.engine.offences[gid]:
-            self.engine.offences[gid][uid] = 0
-            save_offences({g: dict(users) for g, users in self.engine.offences.items()})
-            msg = f"🔄 automod points reset for **{user}**."
+    @app.command("/automod_reset")
+    async def automod_reset(ack, command, respond):
+        await ack()
+        import re as re_mod
+        workspace_id = command.get("team_id") or "default"
+        text = (command.get("text") or "").strip()
+        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
+        if not m:
+            return await respond(text="Usage: `/automod_reset @user`", response_type="ephemeral")
+        uid = m.group(1)
+        if uid in ENGINE.offences.get(workspace_id, {}):
+            ENGINE.offences[workspace_id][uid] = 0
+            save_offences({ws: dict(users) for ws, users in ENGINE.offences.items()})
+            await respond(text=f":arrows_counterclockwise: Reset offences for <@{uid}>.")
         else:
-            msg = f"ℹ️ **{user}** had no automod points."
-        await interaction.response.send_message(msg)
+            await respond(text=f"<@{uid}> has no recorded offences.")
 
-    @app_commands.command(name="automod_punishment", description="Set automod punishment for an offence level")
-    @app_commands.describe(level="Offence number (1, 2, 3, ...)", action="warn | timeout:minutes | kick | ban")
-    async def automod_punishment(self, interaction: discord.Interaction, level: int, action: str):
-        if not interaction.guild:
-            return await interaction.response.send_message("guild only", ephemeral=True)
-        if not isinstance(interaction.user, discord.Member) or not has_mod_perms(interaction.user):
-            return await interaction.response.send_message("you dont have permission to do that", ephemeral=True)
-        if level < 1:
-            return await interaction.response.send_message("level must be >= 1", ephemeral=True)
-
-        action = (action or "").lower().strip()
+    @app.command("/automod_punishment")
+    async def automod_punishment(ack, command, respond):
+        await ack()
+        workspace_id = command.get("team_id") or "default"
+        args = (command.get("text") or "").split()
+        if len(args) < 2:
+            return await respond(text="Usage: `/automod_punishment <level> <warn|kick|ban|timeout:minutes>`", response_type="ephemeral")
+        try:
+            level = int(args[0])
+        except Exception:
+            return await respond(text="Level must be a number.", response_type="ephemeral")
+        action = args[1].lower().strip()
         valid = action in {"warn", "kick", "ban"} or (action.startswith("timeout:") and action.split(":", 1)[1].isdigit())
         if not valid:
-            return await interaction.response.send_message("invalid action. use warn, kick, ban, or timeout:<minutes>", ephemeral=True)
-
-        cfg = self.engine.get_cfg(interaction.guild.id)
+            return await respond(text="Invalid action.", response_type="ephemeral")
+        cfg = ENGINE.get_cfg(workspace_id)
         cfg["punishments"][str(level)] = action
         save_automod()
-        await interaction.response.send_message(f"✅ automod punishment set: level {level} → `{action}`")
+        await respond(text=f":white_check_mark: Level {level} → `{action}`")
 
-    @app_commands.command(name="automod_slurs", description="Manage automod slurs")
-    @app_commands.describe(action="list, add, or remove", word="word for add/remove")
-    async def automod_slurs(self, interaction: discord.Interaction, action: str, word: Optional[str] = None):
-        if not interaction.guild:
-            return await interaction.response.send_message("guild only", ephemeral=True)
-        if not isinstance(interaction.user, discord.Member) or not has_mod_perms(interaction.user):
-            return await interaction.response.send_message("you dont have permission to do that", ephemeral=True)
-
-        cfg = self.engine.get_cfg(interaction.guild.id)
-        action = (action or "").lower().strip()
-
+    @app.command("/automod_slurs")
+    async def automod_slurs(ack, command, respond):
+        await ack()
+        workspace_id = command.get("team_id") or "default"
+        args = (command.get("text") or "").split(None, 1)
+        action = args[0].lower() if args else "list"
+        word = args[1].strip() if len(args) > 1 else None
+        cfg = ENGINE.get_cfg(workspace_id)
         if action == "list":
-            if not cfg["slurs"]:
-                return await interaction.response.send_message("no slurs set")
-            lines = [censor_word(w) for w in cfg["slurs"]]
-            return await interaction.response.send_message("**automod slurs:**\n" + ", ".join(lines))
-
+            slurs = cfg["slurs"]
+            if not slurs:
+                return await respond(text="No slurs set.")
+            return await respond(text="*Automod slurs:* " + ", ".join(censor_word(s) for s in slurs))
         if action == "add":
             if not word:
-                return await interaction.response.send_message("give a word", ephemeral=True)
+                return await respond(text="Provide a word.", response_type="ephemeral")
             w = word.lower().strip()
-            if not w:
-                return await interaction.response.send_message("give a word", ephemeral=True)
             if w in cfg["slurs"]:
-                return await interaction.response.send_message("already exists", ephemeral=True)
-            cfg["slurs"].append(w)
-            save_automod()
-            return await interaction.response.send_message(f"added `{censor_word(w)}`")
-
+                return await respond(text="Already exists.", response_type="ephemeral")
+            cfg["slurs"].append(w); save_automod()
+            return await respond(text=f"Added `{censor_word(w)}`.")
         if action == "remove":
             if not word:
-                return await interaction.response.send_message("give a word", ephemeral=True)
+                return await respond(text="Provide a word.", response_type="ephemeral")
             w = word.lower().strip()
             if w not in cfg["slurs"]:
-                return await interaction.response.send_message("not found", ephemeral=True)
-            cfg["slurs"].remove(w)
-            save_automod()
-            return await interaction.response.send_message(f"removed `{censor_word(w)}`")
+                return await respond(text="Not found.", response_type="ephemeral")
+            cfg["slurs"].remove(w); save_automod()
+            return await respond(text=f"Removed `{censor_word(w)}`.")
+        await respond(text="Actions: list, add, remove", response_type="ephemeral")
 
-        await interaction.response.send_message("actions: list, add, remove", ephemeral=True)
-
-    @app_commands.command(name="automod_spam", description="Configure automod spam settings")
-    @app_commands.describe(
-        setting="window_seconds | max_messages | duplicate_count | max_mentions | max_links | caps_ratio | caps_min_len | max_zalgo_marks | repeat_char_limit",
-        value="New value"
-    )
-    async def automod_spam(self, interaction: discord.Interaction, setting: str, value: str):
-        if not interaction.guild:
-            return await interaction.response.send_message("guild only", ephemeral=True)
-        if not isinstance(interaction.user, discord.Member) or not has_mod_perms(interaction.user):
-            return await interaction.response.send_message("no permission", ephemeral=True)
-    
-        cfg = self.engine.get_cfg(interaction.guild.id)
+    @app.command("/automod_spam")
+    async def automod_spam(ack, command, respond):
+        await ack()
+        workspace_id = command.get("team_id") or "default"
+        args = (command.get("text") or "").split(None, 1)
+        if len(args) < 2:
+            return await respond(text="Usage: `/automod_spam <setting> <value>`", response_type="ephemeral")
+        setting, value = args
+        cfg = ENGINE.get_cfg(workspace_id)
         spam = cfg["spam"]
-    
         if setting not in spam:
-            return await interaction.response.send_message(
-                f"unknown setting. valid: {', '.join(spam.keys())}",
-                ephemeral=True
-            )
-    
+            return await respond(text=f"Valid settings: {', '.join(spam.keys())}", response_type="ephemeral")
         try:
-            if isinstance(spam[setting], float):
-                spam[setting] = float(value)
-            else:
-                spam[setting] = int(value)
-        except:
-            return await interaction.response.send_message("invalid value", ephemeral=True)
-    
+            spam[setting] = float(value) if isinstance(spam[setting], float) else int(value)
+        except Exception:
+            return await respond(text="Invalid value.", response_type="ephemeral")
         save_automod()
-        await interaction.response.send_message(f"✅ spam `{setting}` set to `{spam[setting]}`")
-    @app_commands.command(name="automod_filters", description="Configure automod filters")
-    @app_commands.describe(filter="block_invites | block_links", mode="on or off")
-    async def automod_filters(self, interaction: discord.Interaction, filter: str, mode: str):
-        if not interaction.guild:
-            return await interaction.response.send_message("guild only", ephemeral=True)
-        if not isinstance(interaction.user, discord.Member) or not has_mod_perms(interaction.user):
-            return await interaction.response.send_message("no permission", ephemeral=True)
-    
-        cfg = self.engine.get_cfg(interaction.guild.id)
-        filters = cfg["filters"]
-    
-        if filter not in filters:
-            return await interaction.response.send_message(
-                f"unknown filter. valid: {', '.join(filters.keys())}",
-                ephemeral=True
-            )
-    
-        filters[filter] = mode.lower() == "on"
+        await respond(text=f":white_check_mark: `{setting}` = `{spam[setting]}`")
+
+    @app.command("/automod_filters")
+    async def automod_filters(ack, command, respond):
+        await ack()
+        workspace_id = command.get("team_id") or "default"
+        args = (command.get("text") or "").split(None, 1)
+        if len(args) < 2:
+            return await respond(text="Usage: `/automod_filters <block_invites|block_links> <on|off>`", response_type="ephemeral")
+        filter_name, mode = args
+        cfg = ENGINE.get_cfg(workspace_id)
+        if filter_name not in cfg["filters"]:
+            return await respond(text=f"Valid filters: {', '.join(cfg['filters'].keys())}", response_type="ephemeral")
+        cfg["filters"][filter_name] = mode.lower() == "on"
         save_automod()
-    
-        await interaction.response.send_message(
-            f"✅ filter `{filter}` {'enabled' if filters[filter] else 'disabled'}"
-        )
-    @app_commands.command(name="automod_settings", description="Configure automod behavior")
-    @app_commands.describe(setting="delete | cooldown_seconds", value="value")
-    async def automod_settings(self, interaction: discord.Interaction, setting: str, value: str):
-        if not interaction.guild:
-            return await interaction.response.send_message("guild only", ephemeral=True)
-        if not isinstance(interaction.user, discord.Member) or not has_mod_perms(interaction.user):
-            return await interaction.response.send_message("no permission", ephemeral=True)
-    
-        cfg = self.engine.get_cfg(interaction.guild.id)
-    
+        await respond(text=f":white_check_mark: `{filter_name}` {'enabled' if cfg['filters'][filter_name] else 'disabled'}")
+
+    @app.command("/automod_settings")
+    async def automod_settings(ack, command, respond):
+        await ack()
+        workspace_id = command.get("team_id") or "default"
+        args = (command.get("text") or "").split(None, 1)
+        if len(args) < 2:
+            return await respond(text="Usage: `/automod_settings <delete|cooldown_seconds> <value>`", response_type="ephemeral")
+        setting, value = args
+        cfg = ENGINE.get_cfg(workspace_id)
         if setting not in {"delete", "cooldown_seconds"}:
-            return await interaction.response.send_message("invalid setting", ephemeral=True)
-    
+            return await respond(text="Invalid setting.", response_type="ephemeral")
         try:
-            if setting == "delete":
-                cfg["delete"] = value.lower() == "on"
-            else:
-                cfg[setting] = int(value)
-        except:
-            return await interaction.response.send_message("invalid value", ephemeral=True)
-    
+            cfg[setting] = value.lower() == "on" if setting == "delete" else int(value)
+        except Exception:
+            return await respond(text="Invalid value.", response_type="ephemeral")
         save_automod()
-        await interaction.response.send_message(f"✅ `{setting}` set to `{cfg[setting]}`")
-
-
-async def setup(bot: commands.Bot):
-    await bot.add_cog(AutoModCog(bot))
+        await respond(text=f":white_check_mark: `{setting}` = `{cfg[setting]}`")

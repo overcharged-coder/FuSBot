@@ -1,6 +1,3 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
 import aiohttp
 import logging
 
@@ -18,62 +15,47 @@ ANIMAL_ENDPOINTS = {
     "kangaroo": "https://some-random-api.com/animal/kangaroo",
 }
 
+VALID_ANIMALS = sorted(ANIMAL_ENDPOINTS.keys())
 
-class AnimalCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.session = aiohttp.ClientSession()
 
-    async def cog_unload(self):
-        await self.session.close()
+async def _fetch_animal(animal: str) -> dict | None:
+    url = ANIMAL_ENDPOINTS.get(animal)
+    if not url:
+        return None
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(url) as resp:
+                return await resp.json()
+    except Exception:
+        log.exception("Animal API failed")
+        return None
 
-    async def fetch_animal(self, interaction: discord.Interaction, animal: str):
-        url = ANIMAL_ENDPOINTS[animal]
 
-        try:
-            async with self.session.get(url) as resp:
-                data = await resp.json()
-        except Exception:
-            log.exception("Animal API failed")
-            await interaction.followup.send("❌ Failed to fetch animal.")
+async def setup(app):
+    @app.command("/animal")
+    async def animal_cmd(ack, command, respond):
+        await ack()
+        text = (command.get("text") or "").strip().lower().replace(" ", "_")
+        if text not in ANIMAL_ENDPOINTS:
+            names = ", ".join(VALID_ANIMALS)
+            await respond(text=f"Pick an animal: {names}", response_type="ephemeral")
             return
 
-        image = data.get("image")
-        fact = data.get("fact")
+        data = await _fetch_animal(text)
+        if not data:
+            await respond(text="Failed to fetch animal.", response_type="ephemeral")
+            return
 
-        embed = discord.Embed(
-            title=animal.replace("_", " ").title(),
-            description=fact,
-            color=0xF5A9B8,
-        )
+        image = data.get("image", "")
+        fact = data.get("fact", "")
+        title = text.replace("_", " ").title()
 
-        if image:
-            embed.set_image(url=image)
-
-        await interaction.followup.send(embed=embed)
-
-    @app_commands.command(name="animal", description="Get a random animal")
-    @app_commands.choices(
-        animal=[
-            app_commands.Choice(name="Cat", value="cat"),
-            app_commands.Choice(name="Dog", value="dog"),
-            app_commands.Choice(name="Fox", value="fox"),
-            app_commands.Choice(name="Panda", value="panda"),
-            app_commands.Choice(name="Red Panda", value="red_panda"),
-            app_commands.Choice(name="Koala", value="koala"),
-            app_commands.Choice(name="Bird", value="bird"),
-            app_commands.Choice(name="Raccoon", value="raccoon"),
-            app_commands.Choice(name="Kangaroo", value="kangaroo"),
+        blocks = [
+            {"type": "header", "text": {"type": "plain_text", "text": title, "emoji": True}},
         ]
-    )
-    async def animal(
-        self,
-        interaction: discord.Interaction,
-        animal: app_commands.Choice[str],
-    ):
-        await interaction.response.defer()
-        await self.fetch_animal(interaction, animal.value)
+        if fact:
+            blocks.append({"type": "section", "text": {"type": "mrkdwn", "text": fact}})
+        if image:
+            blocks.append({"type": "image", "image_url": image, "alt_text": title})
 
-
-async def setup(bot: commands.Bot):
-    await bot.add_cog(AnimalCog(bot))
+        await respond(blocks=blocks, text=title)

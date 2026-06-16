@@ -1,44 +1,16 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
-from discord.ui import View, button, Modal, TextInput, Select
 import asyncio
 import logging
 import math
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 
 import aiohttp
-from moviepy.editor import (
-    VideoFileClip,
-    TextClip,
-    CompositeVideoClip,
-    ColorClip,
-)
+from moviepy.editor import VideoFileClip, TextClip, CompositeVideoClip, ColorClip, ImageClip
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-from moviepy.editor import ImageClip
-
-def text_clip(txt, font_path, fontsize, color, duration, pos):
-    font = ImageFont.truetype(font_path, fontsize)
-
-    dummy = Image.new("RGBA", (1, 1))
-    d = ImageDraw.Draw(dummy)
-    w, h = d.textbbox((0, 0), txt, font=font)[2:]
-
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    draw.text((0, 0), txt, font=font, fill=color)
-
-    return (
-        ImageClip(np.array(img))
-        .set_duration(duration)
-        .set_position(pos)
-    )
-
 
 log = logging.getLogger("rave")
 
@@ -52,16 +24,15 @@ UPLOADS.mkdir(exist_ok=True)
 
 FONT_URL = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/Verdana.ttf"
 FONT = ASSETS / "Verdana.ttf"
-
 CRAB_TEMPLATE = ASSETS / "crab_template.mp4"
-
 QUEUE = asyncio.Semaphore(2)
-
 MAX_MB = 8
+
 
 class Mode(str, Enum):
     TEMPLATE = "Crab Rave"
     BUILD = "Build"
+
 
 class Base(str, Enum):
     PULSE = "Pulse"
@@ -70,289 +41,275 @@ class Base(str, Enum):
     GRADIENT = "Gradient"
     UPLOAD = "Upload"
 
+
 class Anim(str, Enum):
     STATIC = "Static"
     BOUNCE = "Bounce"
 
-class Ease(str, Enum):
-    LINEAR = "Linear"
-    INOUT = "EaseInOut"
-    ELASTIC = "Elastic"
 
 @dataclass
 class Cfg:
     mode: Mode = Mode.TEMPLATE
     base: Base = Base.PULSE
     anim: Anim = Anim.BOUNCE
-    ease: Ease = Ease.INOUT
-
     top: str = "TOP TEXT"
     bottom: str = "BOTTOM TEXT"
-
     font: int = 56
-
     dur: float = 15.4
     fps: int = 24
     bpm: int = 128
-
     upload: str = ""
 
-def now():
+
+def _now_ms() -> str:
     return str(int(time.time() * 1000))
 
-class UploadKeyModal(Modal, title="Set Upload Key"):
-    key = TextInput(label="Upload key", required=True)
 
-    def __init__(self, cfg):
-        super().__init__()
-        self.cfg = cfg
-        self.key.default = cfg.upload
-
-    async def on_submit(self, i):
-        self.cfg.upload = self.key.value.strip()
-        await i.response.send_message("Upload key set.", ephemeral=True)
-
-class TextModal(Modal, title="Text"):
-    t = TextInput(label="Top", max_length=64)
-    b = TextInput(label="Bottom", max_length=64)
-
-    def __init__(self, cfg):
-        super().__init__()
-        self.cfg = cfg
-        self.t.default = cfg.top
-        self.b.default = cfg.bottom
-
-    async def on_submit(self, i):
-        self.cfg.top = self.t.value
-        self.cfg.bottom = self.b.value
-        await i.response.send_message("Updated.", ephemeral=True)
-
-class ModeSelect(Select):
-    def __init__(self, view):
-        self.view_ref = view
-        super().__init__(
-            placeholder="Mode",
-            options=[discord.SelectOption(label=m.value) for m in Mode],
-        )
-
-    async def callback(self, interaction):
-        self.view_ref.cfg.mode = Mode(self.values[0])
-        await interaction.response.defer()
-        await self.view_ref.refresh(interaction)
-class BaseSelect(Select):
-    def __init__(self, view):
-        self.view_ref = view
-        super().__init__(
-            placeholder="Build Base",
-            options=[discord.SelectOption(label=b.value) for b in Base],
-        )
-
-    def sync_state(self):
-        self.disabled = self.view_ref.cfg.mode == Mode.TEMPLATE
-
-    async def callback(self, interaction):
-        self.view_ref.cfg.base = Base(self.values[0])
-        await interaction.response.defer()
-        await self.view_ref.refresh(interaction)
+def text_clip(txt, font_path, fontsize, color, duration, pos):
+    font = ImageFont.truetype(font_path, fontsize)
+    dummy = Image.new("RGBA", (1, 1))
+    d = ImageDraw.Draw(dummy)
+    w, h = d.textbbox((0, 0), txt, font=font)[2:]
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    draw.text((0, 0), txt, font=font, fill=color)
+    return ImageClip(np.array(img)).set_duration(duration).set_position(pos)
 
 
-class AnimSelect(Select):
-    def __init__(self, view):
-        self.view_ref = view
-        super().__init__(
-            placeholder="Animation",
-            options=[discord.SelectOption(label=a.value) for a in Anim],
-        )
-
-    async def callback(self, interaction):
-        self.view_ref.cfg.anim = Anim(self.values[0])
-        await interaction.response.defer()
-        await self.view_ref.refresh(interaction)
-
-class RaveView(View):
-    def __init__(self, cog, uid):
-        super().__init__(timeout=900)
-        self.cog = cog
-        self.uid = uid
-        self.cfg = Cfg()
-        self.status = "Idle"
-
-        self.add_item(ModeSelect(self))
-        self.add_item(BaseSelect(self))
-        self.add_item(AnimSelect(self))
-        for item in self.children:
-            if isinstance(item, BaseSelect):
-                item.sync_state()
-    async def interaction_check(self, i):
-        return i.user.id == self.uid
-
-    def embed(self):
-        e = discord.Embed(title="🎛️ Rave Builder", color=0x2B2D31)
-        c = self.cfg
-        e.add_field(name="Mode", value=c.mode.value)
-        e.add_field(name="Base", value=c.base.value)
-        e.add_field(name="Anim", value=c.anim.value)
-        e.add_field(name="Text", value=f"{c.top}\n{c.bottom}", inline=False)
-        if c.upload:
-            e.add_field(name="Upload", value=c.upload)
-        e.set_footer(text=self.status)
-        return e
-
-    async def refresh(self, i):
-        for item in self.children:
-            if isinstance(item, BaseSelect):
-                item.sync_state()
-    
-        await i.message.edit(embed=self.embed(), view=self)
+async def _ensure_font():
+    if not FONT.exists():
+        async with aiohttp.ClientSession() as s:
+            async with s.get(FONT_URL) as r:
+                FONT.write_bytes(await r.read())
+    if not CRAB_TEMPLATE.exists():
+        raise RuntimeError("Missing crab_template.mp4 in data/rave/assets/")
 
 
-    @button(label="Text", style=discord.ButtonStyle.primary)
-    async def btn_text(self, i, _):
-        await i.response.send_modal(TextModal(self.cfg))
+def render(uid: str, cfg: Cfg, preview: bool) -> Path:
+    dur = 6 if preview else cfg.dur
+    size = (854, 480) if preview else (1280, 720)
 
-    @button(label="Set Upload", style=discord.ButtonStyle.secondary)
-    async def btn_upload(self, i, _):
-        await i.response.send_modal(UploadKeyModal(self.cfg))
+    if cfg.mode == Mode.TEMPLATE:
+        clip = VideoFileClip(str(CRAB_TEMPLATE)).subclip(0, dur).resize(size)
+    elif cfg.base == Base.UPLOAD:
+        if not cfg.upload:
+            raise ValueError("No upload key set")
+        path = UPLOADS / f"{uid}_{cfg.upload}"
+        if not path.exists():
+            raise FileNotFoundError(f"Upload not found: {path}")
+        clip = VideoFileClip(str(path)).loop(duration=dur).resize(height=size[1])
+    else:
+        clip = ColorClip(size, color=(10, 10, 10), duration=dur)
 
-    @button(label="Preview", style=discord.ButtonStyle.success)
-    async def btn_preview(self, i, _):
-        if self.cfg.base == Base.UPLOAD and not self.cfg.upload:
-            await i.response.send_message(
-                "⚠️ Please set an upload key first.",
-                ephemeral=True,
-            )
+    def pos_top(t):
+        dy = 30 * math.sin(2 * math.pi * cfg.bpm / 60 * t) if cfg.anim == Anim.BOUNCE else 0
+        return ("center", int(size[1] * 0.08 + dy))
+
+    def pos_bottom(t):
+        dy = 30 * math.sin(2 * math.pi * cfg.bpm / 60 * t) if cfg.anim == Anim.BOUNCE else 0
+        return ("center", int(size[1] * 0.80 + dy))
+
+    top = text_clip(cfg.top.upper(), str(FONT), cfg.font, "white", dur, pos_top)
+    bottom = text_clip(cfg.bottom.upper(), str(FONT), cfg.font, "white", dur, pos_bottom)
+    comp = CompositeVideoClip([clip, top, bottom], size=size)
+    out = DATA / f"{uid}_{_now_ms()}.mp4"
+    comp.write_videofile(str(out), fps=cfg.fps, preset="superfast", logger=None)
+    comp.close()
+    clip.close()
+    return out
+
+
+_sessions: dict[str, dict] = {}
+
+
+def _cfg_from_session(uid: str) -> Cfg:
+    s = _sessions.get(uid, {})
+    return Cfg(
+        mode=Mode(s.get("mode", Mode.TEMPLATE.value)),
+        base=Base(s.get("base", Base.PULSE.value)),
+        anim=Anim(s.get("anim", Anim.BOUNCE.value)),
+        top=s.get("top", "TOP TEXT"),
+        bottom=s.get("bottom", "BOTTOM TEXT"),
+        upload=s.get("upload", ""),
+    )
+
+
+def _session_blocks(uid: str, status: str = "Idle") -> list[dict]:
+    cfg = _cfg_from_session(uid)
+    return [
+        {"type": "header", "text": {"type": "plain_text", "text": "Rave Builder", "emoji": True}},
+        {"type": "section", "fields": [
+            {"type": "mrkdwn", "text": f"*Mode*\n{cfg.mode.value}"},
+            {"type": "mrkdwn", "text": f"*Base*\n{cfg.base.value}"},
+            {"type": "mrkdwn", "text": f"*Anim*\n{cfg.anim.value}"},
+            {"type": "mrkdwn", "text": f"*Status*\n{status}"},
+        ]},
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*Text*\n{cfg.top} / {cfg.bottom}"}},
+        {"type": "actions", "block_id": "rave_controls", "elements": [
+            {"type": "static_select", "placeholder": {"type": "plain_text", "text": "Mode"}, "action_id": "rave_mode",
+             "options": [{"text": {"type": "plain_text", "text": m.value}, "value": m.value} for m in Mode]},
+            {"type": "static_select", "placeholder": {"type": "plain_text", "text": "Base"}, "action_id": "rave_base",
+             "options": [{"text": {"type": "plain_text", "text": b.value}, "value": b.value} for b in Base]},
+            {"type": "static_select", "placeholder": {"type": "plain_text", "text": "Anim"}, "action_id": "rave_anim",
+             "options": [{"text": {"type": "plain_text", "text": a.value}, "value": a.value} for a in Anim]},
+        ]},
+        {"type": "actions", "block_id": "rave_render", "elements": [
+            {"type": "button", "text": {"type": "plain_text", "text": "Set Text"}, "action_id": "rave_set_text"},
+            {"type": "button", "text": {"type": "plain_text", "text": "Set Upload Key"}, "action_id": "rave_set_upload"},
+            {"type": "button", "text": {"type": "plain_text", "text": "Preview"}, "action_id": "rave_preview", "style": "primary"},
+            {"type": "button", "text": {"type": "plain_text", "text": "Render"}, "action_id": "rave_render_btn", "style": "primary"},
+        ]},
+    ]
+
+
+async def setup(app):
+    @app.command("/rave")
+    async def rave_cmd(ack, command, client):
+        await ack()
+        try:
+            await _ensure_font()
+        except RuntimeError as e:
+            await client.chat_postEphemeral(channel=command["channel_id"], user=command["user_id"], text=str(e))
             return
-        await self.run(i, True)
-    
-    
-    @button(label="Render", style=discord.ButtonStyle.success)
-    async def btn_render(self, i, _):
-        if self.cfg.base == Base.UPLOAD and not self.cfg.upload:
-            await i.response.send_message(
-                "⚠️ Please set an upload key first.",
-                ephemeral=True,
-            )
-            return
-        await self.run(i, False)
+        uid = command["user_id"]
+        _sessions[uid] = {}
+        await client.chat_postMessage(channel=command["channel_id"], blocks=_session_blocks(uid), text="Rave Builder")
 
-    async def run(self, i, preview):
+    @app.command("/ravebg")
+    async def ravebg_cmd(ack, command, client):
+        await ack()
+        uid = command["user_id"]
+        text = (command.get("text") or "").strip()
+        if not text:
+            await client.chat_postEphemeral(channel=command["channel_id"], user=uid, text="Usage: `/ravebg <upload_key>` — share a video file and set its key here.")
+            return
+        _sessions.setdefault(uid, {})["upload"] = text
+        await client.chat_postEphemeral(channel=command["channel_id"], user=uid, text=f"Upload key set to `{text}`.")
+
+    @app.action("rave_mode")
+    async def rave_mode(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        val = body["actions"][0]["selected_option"]["value"]
+        _sessions.setdefault(uid, {})["mode"] = val
+        msg_ts = body["container"]["message_ts"]
+        channel = body["container"]["channel_id"]
+        await client.chat_update(channel=channel, ts=msg_ts, blocks=_session_blocks(uid), text="Rave Builder")
+
+    @app.action("rave_base")
+    async def rave_base(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        val = body["actions"][0]["selected_option"]["value"]
+        _sessions.setdefault(uid, {})["base"] = val
+        msg_ts = body["container"]["message_ts"]
+        channel = body["container"]["channel_id"]
+        await client.chat_update(channel=channel, ts=msg_ts, blocks=_session_blocks(uid), text="Rave Builder")
+
+    @app.action("rave_anim")
+    async def rave_anim(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        val = body["actions"][0]["selected_option"]["value"]
+        _sessions.setdefault(uid, {})["anim"] = val
+        msg_ts = body["container"]["message_ts"]
+        channel = body["container"]["channel_id"]
+        await client.chat_update(channel=channel, ts=msg_ts, blocks=_session_blocks(uid), text="Rave Builder")
+
+    @app.action("rave_set_text")
+    async def rave_set_text(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        s = _sessions.get(uid, {})
+        await client.views_open(
+            trigger_id=body["trigger_id"],
+            view={
+                "type": "modal", "callback_id": "rave_text_modal", "title": {"type": "plain_text", "text": "Set Text"},
+                "submit": {"type": "plain_text", "text": "Save"},
+                "private_metadata": body["container"]["message_ts"] + "|" + body["container"]["channel_id"],
+                "blocks": [
+                    {"type": "input", "block_id": "top_block", "label": {"type": "plain_text", "text": "Top Text"}, "element": {"type": "plain_text_input", "action_id": "top_input", "initial_value": s.get("top", "TOP TEXT")}},
+                    {"type": "input", "block_id": "bottom_block", "label": {"type": "plain_text", "text": "Bottom Text"}, "element": {"type": "plain_text_input", "action_id": "bottom_input", "initial_value": s.get("bottom", "BOTTOM TEXT")}},
+                ],
+            }
+        )
+
+    @app.view("rave_text_modal")
+    async def rave_text_modal(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        vals = body["view"]["state"]["values"]
+        top = vals["top_block"]["top_input"]["value"] or "TOP TEXT"
+        bottom = vals["bottom_block"]["bottom_input"]["value"] or "BOTTOM TEXT"
+        _sessions.setdefault(uid, {}).update({"top": top, "bottom": bottom})
+        meta = body["view"].get("private_metadata", "")
+        parts = meta.split("|", 1)
+        if len(parts) == 2:
+            msg_ts, channel = parts
+            await client.chat_update(channel=channel, ts=msg_ts, blocks=_session_blocks(uid), text="Rave Builder")
+
+    @app.action("rave_set_upload")
+    async def rave_set_upload(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        s = _sessions.get(uid, {})
+        await client.views_open(
+            trigger_id=body["trigger_id"],
+            view={
+                "type": "modal", "callback_id": "rave_upload_modal", "title": {"type": "plain_text", "text": "Set Upload Key"},
+                "submit": {"type": "plain_text", "text": "Save"},
+                "private_metadata": body["container"]["message_ts"] + "|" + body["container"]["channel_id"],
+                "blocks": [
+                    {"type": "input", "block_id": "key_block", "label": {"type": "plain_text", "text": "Upload Key"}, "element": {"type": "plain_text_input", "action_id": "key_input", "initial_value": s.get("upload", "")}},
+                ],
+            }
+        )
+
+    @app.view("rave_upload_modal")
+    async def rave_upload_modal(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        vals = body["view"]["state"]["values"]
+        key = vals["key_block"]["key_input"]["value"] or ""
+        _sessions.setdefault(uid, {})["upload"] = key.strip()
+        meta = body["view"].get("private_metadata", "")
+        parts = meta.split("|", 1)
+        if len(parts) == 2:
+            msg_ts, channel = parts
+            await client.chat_update(channel=channel, ts=msg_ts, blocks=_session_blocks(uid), text="Rave Builder")
+
+    async def _do_render(uid: str, channel: str, msg_ts: str, preview: bool, client):
+        cfg = _cfg_from_session(uid)
+        if cfg.base == Base.UPLOAD and not cfg.upload:
+            await client.chat_postEphemeral(channel=channel, user=uid, text="Set an upload key first.")
+            return
         async with QUEUE:
-            self.status = "Rendering"
-            await i.response.edit_message(embed=self.embed(), view=self)
-    
+            await client.chat_update(channel=channel, ts=msg_ts, blocks=_session_blocks(uid, "Rendering..."), text="Rendering...")
             try:
-                out = await asyncio.to_thread(
-                    self.cog.render, self.uid, self.cfg, preview
-                )
+                out = await asyncio.to_thread(render, uid, cfg, preview)
             except Exception as e:
-                self.status = "Error"
-                await i.followup.send(
-                    f"❌ **Render failed:** {e}",
-                    ephemeral=True,
-                )
-                await i.message.edit(embed=self.embed(), view=self)
+                await client.chat_update(channel=channel, ts=msg_ts, blocks=_session_blocks(uid, "Error"), text="Render failed")
+                await client.chat_postEphemeral(channel=channel, user=uid, text=f"Render failed: {e}")
                 return
-    
-            await i.followup.send(file=discord.File(out))
-            os.remove(out)
-            self.stop()
+            try:
+                await client.files_upload_v2(channel=channel, file=str(out), filename=out.name)
+                os.remove(out)
+            except Exception:
+                pass
+            _sessions.pop(uid, None)
 
+    @app.action("rave_preview")
+    async def rave_preview(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        channel = body["container"]["channel_id"]
+        msg_ts = body["container"]["message_ts"]
+        asyncio.ensure_future(_do_render(uid, channel, msg_ts, True, client))
 
-class RaveCog(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
-
-    async def ensure(self):
-
-        if not FONT.exists():
-            async with aiohttp.ClientSession() as s:
-                async with s.get(FONT_URL) as r:
-                    FONT.write_bytes(await r.read())
-
-        if not CRAB_TEMPLATE.exists():
-            raise RuntimeError(
-                "Missing crab_template.mp4 in data/rave/assets/"
-            )
-
-    def render(self, uid, cfg, preview):
-        dur = 6 if preview else cfg.dur
-        size = (854, 480) if preview else (1280, 720)
-
-        if cfg.mode == Mode.TEMPLATE:
-            clip = (
-                VideoFileClip(str(CRAB_TEMPLATE))
-                .subclip(0, dur)
-                .resize(size)
-            )
-
-        elif cfg.base == Base.UPLOAD:
-            if not cfg.upload:
-                raise ValueError("No upload key set")
-        
-            path = UPLOADS / f"{uid}_{cfg.upload}"
-            if not path.exists():
-                raise FileNotFoundError(f"Upload not found: {path}")
-        
-            clip = (
-                VideoFileClip(str(path))
-                .loop(duration=dur)
-                .resize(height=size[1])
-            )
-        else:
-            clip = ColorClip(size, color=(10, 10, 10), duration=dur)
-
-        def pos_top(t):
-            p = math.sin(2 * math.pi * cfg.bpm / 60 * t)
-            dy = 30 * p if cfg.anim == Anim.BOUNCE else 0
-            return ("center", int(size[1] * 0.08 + dy))
-        
-        
-        def pos_bottom(t):
-            p = math.sin(2 * math.pi * cfg.bpm / 60 * t)
-            dy = 30 * p if cfg.anim == Anim.BOUNCE else 0
-            return ("center", int(size[1] * 0.80 + dy))
-
-        top = text_clip(cfg.top.upper(), str(FONT), cfg.font, "white", dur, pos_top)
-        bottom = text_clip(cfg.bottom.upper(), str(FONT), cfg.font, "white", dur, pos_bottom)
-
-
-        comp = CompositeVideoClip([clip, top, bottom], size=size)
-        out = DATA / f"{uid}_{now()}.mp4"
-        comp.write_videofile(str(out), fps=cfg.fps, preset="superfast", logger=None)
-
-        comp.close()
-        clip.close()
-        return out
-
-    @app_commands.command(
-        name="rave",
-        description="Open the interactive rave video builder"
-    )
-    async def rave(self, i):
-        await self.ensure()
-        v = RaveView(self, i.user.id)
-        await i.response.send_message(embed=v.embed(), view=v)
-
-    @app_commands.command(
-        name="ravebg",
-        description="Upload a background video for rave builds"
-    )
-    async def ravebg(self, i, file: discord.Attachment):
-        if file.size > MAX_MB * 1024 * 1024:
-            await i.response.send_message(
-                f"❌ File too large ({file.size / 1024 / 1024:.1f} MB). "
-                f"Max allowed is {MAX_MB} MB.",
-                ephemeral=True,
-            )
-            return
-    
-        key = now() + "_" + file.filename
-        await file.save(UPLOADS / f"{i.user.id}_{key}")
-        await i.response.send_message(
-            f"✅ Saved. Upload key: `{key}`",
-            ephemeral=True,
-        )
-
-async def setup(bot):
-    await bot.add_cog(RaveCog(bot))
-
+    @app.action("rave_render_btn")
+    async def rave_render(ack, body, client):
+        await ack()
+        uid = body["user"]["id"]
+        channel = body["container"]["channel_id"]
+        msg_ts = body["container"]["message_ts"]
+        asyncio.ensure_future(_do_render(uid, channel, msg_ts, False, client))

@@ -1,7 +1,4 @@
 import datetime
-import discord
-from discord.ext import commands
-from discord import app_commands
 
 from economy import get_user
 from economy_shared import state, save_state
@@ -12,24 +9,20 @@ def auction_root():
 
 
 def clean_listings():
-    root = auction_root()
-    now = datetime.datetime.utcnow()
-    kept = []
+    root = auction_root(); now = datetime.datetime.utcnow(); kept = []
     for listing in root.get("listings", []):
-        expires_at = listing.get("expires_at")
         dt = None
         try:
-            dt = datetime.datetime.fromisoformat(expires_at) if expires_at else None
+            dt = datetime.datetime.fromisoformat(listing.get("expires_at", "")) if listing.get("expires_at") else None
         except Exception:
             dt = None
         if dt and dt <= now:
-            seller = get_user(int(listing["seller_id"]))
+            seller = get_user(str(listing["seller_id"]))
             inventory = seller.setdefault("inventory", {})
             inventory[listing["item_name"]] = int(inventory.get(listing["item_name"], 0) or 0) + int(listing["amount"])
         else:
             kept.append(listing)
-    root["listings"] = kept
-    save_state()
+    root["listings"] = kept; save_state()
 
 
 def find_listing(listing_id: int):
@@ -39,107 +32,97 @@ def find_listing(listing_id: int):
     return None
 
 
-class Auction(commands.Cog):
-    auction_group = app_commands.Group(name="auction", description="Auction house commands")
+async def setup(app):
 
-    def __init__(self, bot):
-        self.bot = bot
-
-    @auction_group.command(name="sell", description="List an inventory item on the auction house.")
-    async def sell(self, interaction: discord.Interaction, item_name: str, amount: app_commands.Range[int, 1], price_each: app_commands.Range[int, 1]):
-        clean_listings()
-        data = get_user(interaction.user.id)
-        inventory = data.setdefault("inventory", {})
+    @app.command("/auction_sell")
+    async def auction_sell(ack, command, client):
+        await ack()
+        uid = command["user_id"]; channel = command["channel_id"]
+        parts = (command.get("text") or "").strip().split()
+        if len(parts) < 3:
+            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/auction_sell <item_name> <amount> <price_each>`"); return
+        item_name = parts[0]
+        try:
+            amount = int(parts[1]); price_each = int(parts[2])
+            if amount < 1 or price_each < 1: raise ValueError
+        except ValueError:
+            await client.chat_postEphemeral(channel=channel, user=uid, text="amount and price_each must be positive integers"); return
+        clean_listings(); data = get_user(uid); inventory = data.setdefault("inventory", {})
         have = int(inventory.get(item_name, 0) or 0)
         if amount > have:
-            await interaction.response.send_message("you dont have that many of that item", ephemeral=True)
-            return
-        inventory[item_name] = have - int(amount)
+            await client.chat_postEphemeral(channel=channel, user=uid, text="you dont have that many of that item"); return
+        inventory[item_name] = have - amount
         if inventory[item_name] <= 0:
             inventory.pop(item_name, None)
-        root = auction_root()
-        listing = {
-            "id": root["next_id"],
-            "seller_id": interaction.user.id,
-            "item_name": item_name,
-            "amount": int(amount),
-            "price_each": int(price_each),
+        root = auction_root(); listing = {
+            "id": root["next_id"], "seller_id": uid, "item_name": item_name, "amount": amount, "price_each": price_each,
             "created_at": datetime.datetime.utcnow().isoformat(),
             "expires_at": (datetime.datetime.utcnow() + datetime.timedelta(days=2)).isoformat(),
         }
-        root["next_id"] += 1
-        root["listings"].append(listing)
-        save_state()
-        await interaction.response.send_message(f"listed `{amount}x {item_name}` for `{price_each}` each as listing `{listing['id']}`")
+        root["next_id"] += 1; root["listings"].append(listing); save_state()
+        await client.chat_postMessage(channel=channel, text=f"listed `{amount}x {item_name}` for `{price_each}` each as listing `{listing['id']}`")
 
-    @auction_group.command(name="browse", description="Browse the current auction house.")
-    async def browse(self, interaction: discord.Interaction):
-        clean_listings()
-        listings = auction_root().get("listings", [])[:20]
-        embed = discord.Embed(
-            title="🛒 Auction House",
-            description=f"active listings: `{len(auction_root().get('listings', []))}`",
-            color=discord.Color.dark_gold(),
-            timestamp=datetime.datetime.now(datetime.timezone.utc)
-        )
+    @app.command("/auction_browse")
+    async def auction_browse(ack, command, client):
+        await ack()
+        channel = command["channel_id"]; clean_listings()
+        all_listings = auction_root().get("listings", []); listings = all_listings[:20]
         if not listings:
-            embed.add_field(name="Listings", value="nothing is up right now", inline=False)
+            msg = ":shopping_trolley: *Auction House*\nnothing is up right now"
         else:
             lines = []
             for listing in listings:
                 total = int(listing["amount"]) * int(listing["price_each"])
-                lines.append(
-                    f"`{listing['id']}` **{listing['item_name']}** x{listing['amount']} • `{listing['price_each']}` each • total `{total}`"
-                )
-            embed.add_field(name="Listings", value="\n".join(lines), inline=False)
-        embed.set_footer(text="use /auction buy <id> to buy or /auction cancel <id> to cancel your own listing")
-        await interaction.response.send_message(embed=embed)
+                lines.append(f"`{listing['id']}` *{listing['item_name']}* x{listing['amount']} • `{listing['price_each']}` each • total `{total}`")
+            msg = (
+                f":shopping_trolley: *Auction House* — {len(all_listings)} active listing(s)\n\n"
+                + "\n".join(lines)
+                + "\n\n_use `/auction_buy <id>` to buy or `/auction_cancel <id>` to cancel your own listing_"
+            )
+        await client.chat_postMessage(channel=channel, text=msg[:3000])
 
-    @auction_group.command(name="buy", description="Buy an auction listing.")
-    async def buy(self, interaction: discord.Interaction, listing_id: int):
-        clean_listings()
-        listing = find_listing(listing_id)
+    @app.command("/auction_buy")
+    async def auction_buy(ack, command, client):
+        await ack()
+        uid = command["user_id"]; channel = command["channel_id"]
+        text = (command.get("text") or "").strip()
+        try:
+            listing_id = int(text)
+        except ValueError:
+            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/auction_buy <listing_id>`"); return
+        clean_listings(); listing = find_listing(listing_id)
         if not listing:
-            await interaction.response.send_message("that listing doesnt exist", ephemeral=True)
-            return
-        if int(listing["seller_id"]) == interaction.user.id:
-            await interaction.response.send_message("you cant buy your own listing", ephemeral=True)
-            return
+            await client.chat_postEphemeral(channel=channel, user=uid, text="that listing doesnt exist"); return
+        if str(listing["seller_id"]) == str(uid):
+            await client.chat_postEphemeral(channel=channel, user=uid, text="you cant buy your own listing"); return
         total = int(listing["amount"]) * int(listing["price_each"])
-        buyer = get_user(interaction.user.id)
-        seller = get_user(int(listing["seller_id"]))
+        buyer = get_user(uid); seller = get_user(str(listing["seller_id"]))
         if int(buyer.get("balance", 0) or 0) < total:
-            await interaction.response.send_message("not enough horsenncy", ephemeral=True)
-            return
+            await client.chat_postEphemeral(channel=channel, user=uid, text="not enough horsenncy"); return
         buyer["balance"] = int(buyer.get("balance", 0) or 0) - total
         seller["balance"] = int(seller.get("balance", 0) or 0) + total
         inventory = buyer.setdefault("inventory", {})
         inventory[listing["item_name"]] = int(inventory.get(listing["item_name"], 0) or 0) + int(listing["amount"])
-        auction_root()["listings"] = [x for x in auction_root().get("listings", []) if int(x.get("id", 0)) != int(listing_id)]
+        auction_root()["listings"] = [x for x in auction_root().get("listings", []) if int(x.get("id", 0)) != listing_id]
         save_state()
-        await interaction.response.send_message(
-            f"bought `{listing['amount']}x {listing['item_name']}` for `{total}` horsenncy from `<@{listing['seller_id']}>`"
-        )
+        await client.chat_postMessage(channel=channel, text=f"bought `{listing['amount']}x {listing['item_name']}` for `{total}` horsenncy from <@{listing['seller_id']}>")
 
-    @auction_group.command(name="cancel", description="Cancel your own auction listing.")
-    async def cancel(self, interaction: discord.Interaction, listing_id: int):
-        clean_listings()
-        listing = find_listing(listing_id)
+    @app.command("/auction_cancel")
+    async def auction_cancel(ack, command, client):
+        await ack()
+        uid = command["user_id"]; channel = command["channel_id"]
+        text = (command.get("text") or "").strip()
+        try:
+            listing_id = int(text)
+        except ValueError:
+            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/auction_cancel <listing_id>`"); return
+        clean_listings(); listing = find_listing(listing_id)
         if not listing:
-            await interaction.response.send_message("that listing doesnt exist", ephemeral=True)
-            return
-        if int(listing["seller_id"]) != interaction.user.id:
-            await interaction.response.send_message("thats not your listing", ephemeral=True)
-            return
-        data = get_user(interaction.user.id)
-        inventory = data.setdefault("inventory", {})
+            await client.chat_postEphemeral(channel=channel, user=uid, text="that listing doesnt exist"); return
+        if str(listing["seller_id"]) != str(uid):
+            await client.chat_postEphemeral(channel=channel, user=uid, text="thats not your listing"); return
+        data = get_user(uid); inventory = data.setdefault("inventory", {})
         inventory[listing["item_name"]] = int(inventory.get(listing["item_name"], 0) or 0) + int(listing["amount"])
-        auction_root()["listings"] = [x for x in auction_root().get("listings", []) if int(x.get("id", 0)) != int(listing_id)]
+        auction_root()["listings"] = [x for x in auction_root().get("listings", []) if int(x.get("id", 0)) != listing_id]
         save_state()
-        await interaction.response.send_message(f"listing `{listing_id}` canceled and items returned")
-
-
-async def setup(bot):
-    print("Loading Auction Cog...")
-    await bot.add_cog(Auction(bot))
-    print("Auction Cog Loaded!")
+        await client.chat_postMessage(channel=channel, text=f"listing `{listing_id}` canceled and items returned")

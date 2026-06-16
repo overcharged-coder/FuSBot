@@ -1,7 +1,3 @@
-import discord
-from discord.ext import commands
-from discord import app_commands
-from discord.ui import View, button, Button
 import aiohttp
 import asyncio
 import json
@@ -9,221 +5,231 @@ import random
 import io
 import time
 from pathlib import Path
-from typing import Optional, Tuple, List
 
-DISCOVERY_DATES = [
-    "20201001",
-    "20210218",
-    "20210521",
-    "20210831",
-    "20220203",
-    "20220823"
-]
-
+DISCOVERY_DATES = ["20201001","20210218","20210521","20210831","20220203","20220823"]
 MAX_HISTORY = 25
 MAX_FAVORITES = 50
 
-class EmojiMixupView(View):
-    def __init__(self, cog, user_id: int, e1: str, e2: str):
-        super().__init__(timeout=180)
-        self.cog = cog
-        self.user_id = user_id
-        self.e1 = e1
-        self.e2 = e2
+_BASE = Path(__file__).parent
+_EMOJIS_FILE = _BASE / "emojis.txt"
+_MIXUP_PATH = _BASE / "mixup_emojis.json"
+_DATA_PATH = _BASE / "emojimixup_data.json"
 
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user.id != self.user_id:
-            await interaction.response.send_message("Not your mix ✋", ephemeral=True)
-            return False
-        return True
-    
-    async def remix_core(self, interaction: discord.Interaction, a: str, b: str):
-        try:
-            file, url = await self.cog.get_mix_file(a, b)
-        except Exception:
-            raise
-    
-        self.e1, self.e2 = a, b
-        embed = self.cog.build_embed(a, b)
-        await self.cog.record(interaction, a, b, url)
-    
-        await interaction.response.edit_message(
-            embed=embed,
-            attachments=[file],
-            view=self
-        )
+_emojis: list[str] = []
+_mixups: dict[str, str] = {}
+_data: dict = {"history": {}, "favorites": {}}
+_lock = asyncio.Lock()
+_session: aiohttp.ClientSession | None = None
+_sessions_state: dict[str, dict] = {}
 
-    @button(label="🔀 Remix", style=discord.ButtonStyle.primary)
-    async def remix(self, interaction: discord.Interaction, _: Button):
-        for _ in range(20):
-            a, b = random.sample(self.cog.emojis, 2)
-            try:
-                await self.remix_core(interaction, a, b)
-                return
-            except Exception:
-                continue
-    
-        await interaction.response.send_message(
-            "❌ No valid mix found.",
-            ephemeral=True
-        )
-    @button(label="↔️ Swap", style=discord.ButtonStyle.secondary)
-    async def swap(self, interaction: discord.Interaction, _: Button):
-        try:
-            await self.remix_core(interaction, self.e2, self.e1)
-        except Exception:
-            await interaction.response.send_message(
-                "❌ No valid mix found.",
-                ephemeral=True
-            )
 
-    
-    @button(label="🎲 Random Left", style=discord.ButtonStyle.success)
-    async def rand_left(self, interaction: discord.Interaction, _: Button):
-        for _ in range(20):
-            a = random.choice(self.cog.emojis)
-            try:
-                await self.remix_core(interaction, a, self.e2)
-                return
-            except Exception:
-                continue
-    
-        await interaction.response.send_message(
-            "❌ No valid mix found.",
-            ephemeral=True
-        )
-    @button(label="🎲 Random Right", style=discord.ButtonStyle.success)
-    async def rand_right(self, interaction: discord.Interaction, _: Button):
-        for _ in range(20):
-            b = random.choice(self.cog.emojis)
-            try:
-                await self.remix_core(interaction, self.e1, b)
-                return
-            except Exception:
-                continue
-    
-        await interaction.response.send_message(
-            "❌ No valid mix found.",
-            ephemeral=True
-        )
-    @button(label="⭐ Favorite", style=discord.ButtonStyle.success)
-    async def favorite(self, interaction: discord.Interaction, _: Button):
-        await interaction.response.defer(ephemeral=True)
-        ok = await self.cog.add_favorite(interaction.user.id, self.e1, self.e2)
-        await interaction.followup.send("⭐ Saved" if ok else "Already saved", ephemeral=True)
+def _codepoints(e: str) -> str:
+    return "_".join(hex(ord(c))[2:] for c in e)
 
-class EmojiMixupCog(commands.Cog):
-    def __init__(self, bot: commands.Bot):
-        self.bot = bot
-        self.base = Path(__file__).parent
-        self.session: Optional[aiohttp.ClientSession] = None
-        self.emojis: List[str] = []
-        self.mixups = {}
-        self.data_path = self.base / "emojimixup_data.json"
-        self.mixup_path = self.base / "mixup_emojis.json"
-        self.data = {"history": {}, "favorites": {}}
-        self.lock = asyncio.Lock()
 
-    async def cog_load(self):
-        self.session = aiohttp.ClientSession()
-        self.emojis = (self.base / "emojis.txt").read_text(encoding="utf-8").splitlines()
-        if self.mixup_path.exists():
-            self.mixups = json.loads(self.mixup_path.read_text(encoding="utf-8"))
-        if self.data_path.exists():
-            self.data = json.loads(self.data_path.read_text(encoding="utf-8"))
+def _key(a: str, b: str) -> str:
+    return "_".join(sorted([a, b]))
 
-    async def cog_unload(self):
-        await self.session.close()
 
-    def codepoints(self, e: str):
-        return "_".join(hex(ord(c))[2:] for c in e)
+def _load():
+    global _emojis, _mixups, _data
+    if _EMOJIS_FILE.exists():
+        _emojis = _EMOJIS_FILE.read_text(encoding="utf-8").splitlines()
+    if _MIXUP_PATH.exists():
+        _mixups = json.loads(_MIXUP_PATH.read_text(encoding="utf-8"))
+    if _DATA_PATH.exists():
+        _data = json.loads(_DATA_PATH.read_text(encoding="utf-8"))
 
-    def key(self, a: str, b: str):
-        return "_".join(sorted([a, b]))
 
-    async def discover_mix(self, a: str, b: str) -> Optional[str]:
-        cp1 = self.codepoints(a)
-        cp2 = self.codepoints(b)
-    
-        attempts = [
-            (cp1, cp2),
-            (cp2, cp1)
-        ]
-    
-        for d in DISCOVERY_DATES:
-            for x, y in attempts:
-                url = f"https://www.gstatic.com/android/keyboard/emojikitchen/{d}/u{x}/u{x}_u{y}.png"
-                async with self.session.get(url) as r:
-                    if r.status == 200:
-                        async with self.lock:
-                            self.mixups[self.key(a, b)] = f"{d}/u{x}/u{x}_u{y}.png"
-                            self.mixup_path.write_text(
-                                json.dumps(self.mixups, ensure_ascii=False, indent=2),
-                                encoding="utf-8"
-                            )
-                        return url
-        return None
+def _save_data():
+    _DATA_PATH.write_text(json.dumps(_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    async def get_mix_file(self, a: str, b: str) -> Tuple[discord.File, str]:
-        k = self.key(a, b)
-        if k in self.mixups:
-            path = self.mixups[k]
-            url = f"https://www.gstatic.com/android/keyboard/emojikitchen/{path}"
+
+def _save_mixups():
+    _MIXUP_PATH.write_text(json.dumps(_mixups, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+async def _get_session() -> aiohttp.ClientSession:
+    global _session
+    if _session is None or _session.closed:
+        _session = aiohttp.ClientSession()
+    return _session
+
+
+async def _discover_mix(a: str, b: str) -> str | None:
+    cp1, cp2 = _codepoints(a), _codepoints(b)
+    sess = await _get_session()
+    for d in DISCOVERY_DATES:
+        for x, y in [(cp1, cp2), (cp2, cp1)]:
+            url = f"https://www.gstatic.com/android/keyboard/emojikitchen/{d}/u{x}/u{x}_u{y}.png"
+            async with sess.get(url) as r:
+                if r.status == 200:
+                    async with _lock:
+                        _mixups[_key(a, b)] = f"{d}/u{x}/u{x}_u{y}.png"
+                        _save_mixups()
+                    return url
+    return None
+
+
+async def _get_mix_bytes(a: str, b: str) -> tuple[bytes, str] | None:
+    k = _key(a, b)
+    if k in _mixups:
+        url = f"https://www.gstatic.com/android/keyboard/emojikitchen/{_mixups[k]}"
+    else:
+        url = await _discover_mix(a, b)
+        if not url:
+            return None
+    sess = await _get_session()
+    async with sess.get(url) as r:
+        return await r.read(), url
+
+
+def _record_history(uid: str, a: str, b: str, url: str):
+    _data.setdefault("history", {}).setdefault(uid, [])
+    _data["history"][uid].insert(0, {"a": a, "b": b, "url": url, "ts": time.time()})
+    _data["history"][uid] = _data["history"][uid][:MAX_HISTORY]
+    _save_data()
+
+
+def _add_favorite(uid: str, a: str, b: str) -> bool:
+    k = _key(a, b)
+    _data.setdefault("favorites", {}).setdefault(uid, [])
+    if k in _data["favorites"][uid]:
+        return False
+    _data["favorites"][uid].insert(0, k)
+    _data["favorites"][uid] = _data["favorites"][uid][:MAX_FAVORITES]
+    _save_data()
+    return True
+
+
+def _mix_blocks(uid: str, a: str, b: str, image_url: str | None = None) -> list[dict]:
+    blocks: list[dict] = [
+        {"type": "section", "text": {"type": "mrkdwn", "text": f"*{a} + {b}*"}},
+    ]
+    if image_url:
+        blocks.append({"type": "image", "image_url": image_url, "alt_text": f"{a}+{b}"})
+    blocks.append({"type": "actions", "elements": [
+        {"type": "button", "text": {"type": "plain_text", "text": "🔀 Remix"}, "action_id": "emj_remix", "value": uid},
+        {"type": "button", "text": {"type": "plain_text", "text": "↔️ Swap"}, "action_id": "emj_swap", "value": uid},
+        {"type": "button", "text": {"type": "plain_text", "text": "🎲 Random Left"}, "action_id": "emj_rand_left", "value": uid},
+        {"type": "button", "text": {"type": "plain_text", "text": "🎲 Random Right"}, "action_id": "emj_rand_right", "value": uid},
+        {"type": "button", "text": {"type": "plain_text", "text": "⭐ Favorite"}, "action_id": "emj_favorite", "value": uid},
+    ]})
+    return blocks
+
+
+async def _do_mix(client, uid: str, channel: str, ts: str | None, a: str, b: str):
+    result = await _get_mix_bytes(a, b)
+    if not result:
+        if ts:
+            await client.chat_update(channel=channel, ts=ts, text=":x: No mix found for those emojis.")
         else:
-            url = await self.discover_mix(a, b)
-            if not url:
-                raise ValueError
-        async with self.session.get(url) as r:
-            data = await r.read()
-        return discord.File(io.BytesIO(data), filename="emoji.png"), url
+            await client.chat_postMessage(channel=channel, text=":x: No mix found.")
+        return
+    data_bytes, url = result
+    _record_history(uid, a, b, url)
+    _sessions_state[uid] = {"e1": a, "e2": b}
+    if ts:
+        await client.chat_update(channel=channel, ts=ts, blocks=_mix_blocks(uid, a, b, url), text=f"{a}+{b}")
+    else:
+        buf = io.BytesIO(data_bytes)
+        await client.files_upload_v2(channel=channel, file=buf, filename="emoji.png", initial_comment=f"*{a} + {b}*")
+        result2 = await client.chat_postMessage(channel=channel, blocks=_mix_blocks(uid, a, b, url), text=f"{a}+{b}")
 
-    def build_embed(self, a: str, b: str):
-        e = discord.Embed(title=f"{a} + {b}", color=0xF7C873)
-        e.set_image(url="attachment://emoji.png")
-        e.set_footer(text="Emoji Kitchen · Auto-discovered")
-        return e
 
-    async def record(self, interaction: discord.Interaction, a: str, b: str, url: str):
-        uid = str(interaction.user.id)
-        self.data.setdefault("history", {}).setdefault(uid, [])
-        self.data["history"][uid].insert(0, {"a": a, "b": b, "url": url, "ts": time.time()})
-        self.data["history"][uid] = self.data["history"][uid][:MAX_HISTORY]
-        self.data_path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
+async def setup(app):
+    _load()
 
-    async def add_favorite(self, uid: int, a: str, b: str):
-        u = str(uid)
-        k = self.key(a, b)
-        self.data.setdefault("favorites", {}).setdefault(u, [])
-        if k in self.data["favorites"][u]:
-            return False
-        self.data["favorites"][u].insert(0, k)
-        self.data["favorites"][u] = self.data["favorites"][u][:MAX_FAVORITES]
-        self.data_path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2), encoding="utf-8")
-        return True
+    @app.command("/emojimixup")
+    async def emojimixup(ack, command, client):
+        await ack()
+        uid = command["user_id"]; channel = command["channel_id"]
+        args = (command.get("text") or "").split()
+        if len(args) < 2:
+            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/emojimixup emoji1 emoji2`")
+        a, b = args[0], args[1]
+        if not _emojis:
+            return await client.chat_postEphemeral(channel=channel, user=uid, text=":x: emojis.txt not found.")
+        if a not in _emojis or b not in _emojis:
+            return await client.chat_postEphemeral(channel=channel, user=uid, text=":x: Unsupported emoji.")
+        asyncio.ensure_future(_do_mix(client, uid, channel, None, a, b))
 
-    async def emoji_autocomplete(self, interaction: discord.Interaction, current: str):
-        return [
-            app_commands.Choice(name=e, value=e)
-            for e in self.emojis
-            if current in e
-        ][:25]
+    @app.action("emj_remix")
+    async def emj_remix(ack, body, client):
+        await ack()
+        uid = body["actions"][0]["value"]
+        if body["user"]["id"] != uid: return
+        channel = body["container"]["channel_id"]; ts = body["container"]["message_ts"]
+        if not _emojis: return
+        for _ in range(20):
+            a, b = random.sample(_emojis, 2)
+            result = await _get_mix_bytes(a, b)
+            if result:
+                data_bytes, url = result
+                _record_history(uid, a, b, url)
+                _sessions_state[uid] = {"e1": a, "e2": b}
+                await client.chat_update(channel=channel, ts=ts, blocks=_mix_blocks(uid, a, b, url), text=f"{a}+{b}")
+                return
+        await client.chat_postEphemeral(channel=channel, user=uid, text=":x: No valid mix found.")
 
-    @app_commands.command(name="emojimixup", description="Mix emojis (auto-discovery enabled)")
-    @app_commands.autocomplete(emoji1=emoji_autocomplete, emoji2=emoji_autocomplete)
-    async def emojimixup(self, interaction: discord.Interaction, emoji1: str, emoji2: str):
-        await interaction.response.defer()
-        if emoji1 not in self.emojis or emoji2 not in self.emojis:
-            await interaction.followup.send("❌ Unsupported emoji.", ephemeral=True)
-            return
-        try:
-            file, url = await self.get_mix_file(emoji1, emoji2)
-        except Exception:
-            await interaction.followup.send("❌ No mix found.", ephemeral=True)
-            return
-        view = EmojiMixupView(self, interaction.user.id, emoji1, emoji2)
-        embed = self.build_embed(emoji1, emoji2)
-        await self.record(interaction, emoji1, emoji2, url)
-        await interaction.followup.send(embed=embed, file=file, view=view)
+    @app.action("emj_swap")
+    async def emj_swap(ack, body, client):
+        await ack()
+        uid = body["actions"][0]["value"]
+        if body["user"]["id"] != uid: return
+        s = _sessions_state.get(uid, {})
+        a, b = s.get("e2",""), s.get("e1","")
+        if not a or not b: return
+        channel = body["container"]["channel_id"]; ts = body["container"]["message_ts"]
+        asyncio.ensure_future(_do_mix(client, uid, channel, ts, a, b))
 
-async def setup(bot: commands.Bot):
-    await bot.add_cog(EmojiMixupCog(bot))
+    @app.action("emj_rand_left")
+    async def emj_rand_left(ack, body, client):
+        await ack()
+        uid = body["actions"][0]["value"]
+        if body["user"]["id"] != uid: return
+        s = _sessions_state.get(uid, {}); b_emoji = s.get("e2","")
+        if not b_emoji or not _emojis: return
+        channel = body["container"]["channel_id"]; ts = body["container"]["message_ts"]
+        for _ in range(20):
+            a = random.choice(_emojis)
+            result = await _get_mix_bytes(a, b_emoji)
+            if result:
+                data_bytes, url = result
+                _record_history(uid, a, b_emoji, url)
+                _sessions_state[uid] = {"e1": a, "e2": b_emoji}
+                await client.chat_update(channel=channel, ts=ts, blocks=_mix_blocks(uid, a, b_emoji, url), text=f"{a}+{b_emoji}")
+                return
+        await client.chat_postEphemeral(channel=channel, user=uid, text=":x: No valid mix found.")
+
+    @app.action("emj_rand_right")
+    async def emj_rand_right(ack, body, client):
+        await ack()
+        uid = body["actions"][0]["value"]
+        if body["user"]["id"] != uid: return
+        s = _sessions_state.get(uid, {}); a_emoji = s.get("e1","")
+        if not a_emoji or not _emojis: return
+        channel = body["container"]["channel_id"]; ts = body["container"]["message_ts"]
+        for _ in range(20):
+            b = random.choice(_emojis)
+            result = await _get_mix_bytes(a_emoji, b)
+            if result:
+                data_bytes, url = result
+                _record_history(uid, a_emoji, b, url)
+                _sessions_state[uid] = {"e1": a_emoji, "e2": b}
+                await client.chat_update(channel=channel, ts=ts, blocks=_mix_blocks(uid, a_emoji, b, url), text=f"{a_emoji}+{b}")
+                return
+        await client.chat_postEphemeral(channel=channel, user=uid, text=":x: No valid mix found.")
+
+    @app.action("emj_favorite")
+    async def emj_favorite(ack, body, client):
+        await ack()
+        uid = body["actions"][0]["value"]
+        actor = body["user"]["id"]
+        if actor != uid: return
+        s = _sessions_state.get(uid, {})
+        a, b = s.get("e1",""), s.get("e2","")
+        if not a or not b: return
+        ok = _add_favorite(uid, a, b)
+        channel = body["container"]["channel_id"]
+        await client.chat_postEphemeral(channel=channel, user=uid, text=":star: Saved!" if ok else "Already saved.")

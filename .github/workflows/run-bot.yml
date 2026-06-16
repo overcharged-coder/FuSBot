@@ -1,4 +1,4 @@
-name: Run Discord Bot
+name: Run Slack Bot
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
     - cron: "0 */6 * * *"
 
 concurrency:
-  group: discord-bot
+  group: slack-bot
   cancel-in-progress: false
 
 jobs:
@@ -18,16 +18,16 @@ jobs:
 
     env:
       PYTHONUNBUFFERED: 1
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      SLACK_APP_TOKEN: ${{ secrets.SLACK_APP_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB }}
       GROQ: ${{ secrets.GROQ }}
-      DEEPINFRA: ${{ secrets.DEEPINFRA }}
-      OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
-      DISCORDKEY: ${{ secrets.DISCORDKEY }}
-      OPENAI: ${{ secrets.OPENAI }}
-      GITHUB: ${{ secrets.GITHUB }}
-      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENROUTER_KEY: ${{ secrets.OPENROUTER_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI }}
       STABILITY_API_KEY: ${{ secrets.STABILITY_API_KEY }}
       REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
+      PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -40,14 +40,14 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          
+
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Discord Bot
+      - name: Run Slack Bot
         run: |
           echo "Starting bot..."
-          python -u bbot.py
+          python -u app.py
           echo "Bot run complete."
 
       - name: Commit & Push bot state
@@ -59,7 +59,10 @@ jobs:
           git fetch origin main
           git pull origin main --strategy-option theirs
 
-          git add state.json roast_memory.json human_brain_state.json automod_config.json automod_offences.json mixup_emojis.json emojimixup_data.json data/rave/assets/* || true
+          git add state.json roast_memory.json human_brain_state.json \
+                  automod_config.json automod_offences.json \
+                  mixup_emojis.json emojimixup_data.json \
+                  data/ || true
 
           if ! git diff --cached --quiet; then
             git commit -m "Update bot state"

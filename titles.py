@@ -1,8 +1,3 @@
-import datetime
-import discord
-from discord.ext import commands
-from discord import app_commands
-
 from economy import get_user
 from economy_shared import save_state
 
@@ -16,10 +11,9 @@ def normalize(text: str) -> str:
     return " ".join((text or "").strip().lower().split())
 
 
-def unlocked_titles(uid: int):
+def unlocked_titles(uid: str):
     data = get_user(uid)
     titles = ["fresh spawn"]
-
     if get_profile_meta:
         meta = get_profile_meta(uid, data)
         title = meta.get("title")
@@ -53,54 +47,45 @@ def unlocked_titles(uid: int):
         balance = int(data.get("balance", 0) or 0)
         if balance >= 10000:
             titles.append("stable banker")
-
-    seen = set()
-    out = []
+    seen = set(); out = []
     for item in titles:
         key = normalize(item)
         if key and key not in seen:
-            seen.add(key)
-            out.append(item)
+            seen.add(key); out.append(item)
     return out
 
 
-class Titles(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+async def setup(app):
 
-    @app_commands.command(name="titles", description="View your unlocked titles.")
-    async def titles(self, interaction: discord.Interaction, user: discord.User = None):
-        target = user or interaction.user
-        data = get_user(target.id)
-        titles = unlocked_titles(target.id)
+    @app.command("/titles")
+    async def titles_cmd(ack, command, client):
+        await ack()
+        import re as re_mod
+        uid = command["user_id"]; channel = command["channel_id"]
+        text = (command.get("text") or "").strip(); target_id = uid; mention = f"<@{uid}>"
+        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
+        if m: target_id = m.group(1); mention = f"<@{target_id}>"
+        data = get_user(target_id); titles = unlocked_titles(target_id)
         equipped = data.get("equipped_title") or titles[0]
-
-        embed = discord.Embed(
-            title=f"🎖️ {target.display_name}'s Titles",
-            description=f"equipped: `{equipped}`\nunlocked: `{len(titles)}`",
-            color=discord.Color.blurple(),
-            timestamp=datetime.datetime.now(datetime.timezone.utc)
+        lines = "\n".join(f"• {t}" for t in titles[:25])
+        msg = (
+            f":medal: *{mention}'s Titles*\n"
+            f"equipped: `{equipped}`\n"
+            f"unlocked: `{len(titles)}`\n\n"
+            f"{lines}\n\n_use `/title_equip <title>` to equip one_"
         )
-        embed.set_thumbnail(url=target.display_avatar.url)
-        embed.add_field(name="Unlocked", value="\n".join(f"• {title}" for title in titles[:25]), inline=False)
-        embed.set_footer(text="use /title_equip <title> to equip one")
-        await interaction.response.send_message(embed=embed)
+        await client.chat_postMessage(channel=channel, text=msg)
 
-    @app_commands.command(name="title_equip", description="Equip one of your unlocked titles.")
-    async def title_equip(self, interaction: discord.Interaction, title: str):
-        data = get_user(interaction.user.id)
-        titles = unlocked_titles(interaction.user.id)
-        wanted = normalize(title)
+    @app.command("/title_equip")
+    async def title_equip_cmd(ack, command, client):
+        await ack()
+        uid = command["user_id"]; channel = command["channel_id"]
+        title_input = (command.get("text") or "").strip()
+        if not title_input:
+            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/title_equip <title name>`"); return
+        data = get_user(uid); titles = unlocked_titles(uid); wanted = normalize(title_input)
         match = next((t for t in titles if normalize(t) == wanted), None)
         if not match:
-            await interaction.response.send_message("that title isnt unlocked for you", ephemeral=True)
-            return
-        data["equipped_title"] = match
-        save_state()
-        await interaction.response.send_message(f"equipped title set to `{match}`")
-
-
-async def setup(bot):
-    print("Loading Titles Cog...")
-    await bot.add_cog(Titles(bot))
-    print("Titles Cog Loaded!")
+            await client.chat_postEphemeral(channel=channel, user=uid, text="that title isnt unlocked for you"); return
+        data["equipped_title"] = match; save_state()
+        await client.chat_postMessage(channel=channel, text=f"equipped title set to `{match}`")

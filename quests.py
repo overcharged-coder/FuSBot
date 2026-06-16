@@ -1,8 +1,5 @@
 import datetime
 import random
-import discord
-from discord.ext import commands
-from discord import app_commands
 
 from economy import get_user
 from economy_shared import state, save_state
@@ -37,7 +34,7 @@ class QuestBoard:
         return datetime.datetime.utcnow().strftime("%Y-%m-%d")
 
     @staticmethod
-    def snapshot_for(uid: int):
+    def snapshot_for(uid: str):
         if build_snapshot:
             return build_snapshot(uid)
         data = get_user(uid)
@@ -51,15 +48,14 @@ class QuestBoard:
         lab = data.get("lab", {}) if isinstance(data.get("lab", {}), dict) else {}
         hack = data.get("hack", {}) if isinstance(data.get("hack", {}), dict) else {}
         team_power = sum(int(animal.get("strength", 0) or 0) for animal in team if isinstance(animal, dict))
-        stock_value = 0
         return {
             "balance": int(data.get("balance", 0) or 0),
-            "net_worth": int(data.get("balance", 0) or 0) + stock_value,
+            "net_worth": int(data.get("balance", 0) or 0),
             "pray_points": int(data.get("pray", 0) or 0),
             "inventory_unique": sum(1 for qty in inventory.values() if int(qty or 0) > 0),
             "owned_animals_count": len(owned_animals),
             "team_power": team_power,
-            "stock_value": stock_value,
+            "stock_value": 0,
             "dungeon_floor": int(dungeon.get("floor", 1) or 1),
             "raid_damage": int(raid.get("damage", 0) or 0),
             "arena_rating": int(arena.get("rating", 0) or 0),
@@ -74,23 +70,18 @@ class QuestBoard:
         return state.setdefault("quest_progress_v1", {})
 
     @classmethod
-    def user_state(cls, uid: int):
+    def user_state(cls, uid: str):
         root = cls.state_root()
-        key = str(uid)
         today = cls.today_key()
-        if key not in root or root[key].get("day") != today:
+        if uid not in root or root[uid].get("day") != today:
             rng = random.Random(f"{uid}:{today}:fusquests")
             picks = rng.sample(cls.QUEST_POOL, k=min(3, len(cls.QUEST_POOL)))
-            root[key] = {
-                "day": today,
-                "quest_ids": [q["id"] for q in picks],
-                "claimed": [],
-            }
+            root[uid] = {"day": today, "quest_ids": [q["id"] for q in picks], "claimed": []}
             save_state()
-        return root[key]
+        return root[uid]
 
     @classmethod
-    def board_for(cls, uid: int):
+    def board_for(cls, uid: str):
         user_state = cls.user_state(uid)
         lookup = {q["id"]: q for q in cls.QUEST_POOL}
         snapshot = cls.snapshot_for(uid)
@@ -103,21 +94,11 @@ class QuestBoard:
             done = current >= q["goal"]
             claimed = quest_id in user_state.get("claimed", [])
             pct = min(100, int(round((current / q["goal"]) * 100))) if q["goal"] > 0 else 100
-            board.append({
-                "index": idx,
-                "id": quest_id,
-                "label": q["label"],
-                "current": current,
-                "goal": q["goal"],
-                "reward": q["reward"],
-                "done": done,
-                "claimed": claimed,
-                "percent": pct,
-            })
+            board.append({"index": idx, "id": quest_id, "label": q["label"], "current": current, "goal": q["goal"], "reward": q["reward"], "done": done, "claimed": claimed, "percent": pct})
         return board
 
     @classmethod
-    def claim(cls, uid: int, index: int):
+    def claim(cls, uid: str, index: int):
         board = cls.board_for(uid)
         if index < 1 or index > len(board):
             return False, "that quest slot doesnt exist"
@@ -134,61 +115,40 @@ class QuestBoard:
         return True, quest
 
 
-class Quests(commands.Cog):
-    def __init__(self, bot):
-        self.bot = bot
+async def setup(app):
 
-    @app_commands.command(name="quests", description="View your daily quest board.")
-    async def quests(self, interaction: discord.Interaction, user: discord.User = None):
-        target = user or interaction.user
-        board = QuestBoard.board_for(target.id)
-        today = QuestBoard.today_key()
-        complete_count = sum(1 for q in board if q["done"])
-        claimed_count = sum(1 for q in board if q["claimed"])
-
-        embed = discord.Embed(
-            title=f"📜 {target.display_name}'s Daily Quests",
-            description=f"day `{today}` • completed `{complete_count}` / `{len(board)}` • claimed `{claimed_count}` / `{len(board)}`",
-            color=discord.Color.green(),
-            timestamp=datetime.datetime.now(datetime.timezone.utc)
+    @app.command("/quests")
+    async def quests_cmd(ack, command, client):
+        await ack()
+        import re as re_mod
+        uid = command["user_id"]; channel = command["channel_id"]
+        text = (command.get("text") or "").strip(); target_id = uid; mention = f"<@{uid}>"
+        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
+        if m: target_id = m.group(1); mention = f"<@{target_id}>"
+        board = QuestBoard.board_for(target_id); today = QuestBoard.today_key()
+        complete_count = sum(1 for q in board if q["done"]); claimed_count = sum(1 for q in board if q["claimed"])
+        lines = []
+        for quest in board:
+            status = ":white_check_mark: claimed" if quest["claimed"] else ":large_green_circle: done" if quest["done"] else ":large_yellow_circle: in progress"
+            lines.append(f"`{quest['index']}` *{quest['label']}*\n{status} • `{quest['current']}` / `{quest['goal']}` • reward `{quest['reward']}`")
+        board_text = "\n\n".join(lines) if lines else "no quests rolled"
+        msg = (
+            f":scroll: *{mention}'s Daily Quests*\n"
+            f"day `{today}` • completed `{complete_count}` / `{len(board)}` • claimed `{claimed_count}` / `{len(board)}`\n\n"
+            f"{board_text}\n\n_use `/quests_claim <slot>` to claim a finished quest_"
         )
-        embed.set_thumbnail(url=target.display_avatar.url)
+        await client.chat_postMessage(channel=channel, text=msg[:3000])
 
-        if not board:
-            embed.add_field(name="Board", value="no quests rolled", inline=False)
-        else:
-            lines = []
-            for quest in board:
-                status = "✅ claimed" if quest["claimed"] else "🟢 done" if quest["done"] else "🟡 in progress"
-                lines.append(
-                    f"`{quest['index']}` **{quest['label']}**\n"
-                    f"{status} • `{quest['current']}` / `{quest['goal']}` • reward `{quest['reward']}`"
-                )
-            embed.add_field(name="Quest Board", value="\n\n".join(lines), inline=False)
-
-        embed.set_footer(text="use /quests_claim <slot> to claim a finished quest")
-        await interaction.response.send_message(embed=embed)
-
-    @app_commands.command(name="quests_claim", description="Claim a finished daily quest by slot number.")
-    @app_commands.describe(slot="Quest number from /quests")
-    async def quests_claim(self, interaction: discord.Interaction, slot: app_commands.Range[int, 1, 3]):
-        ok, result = QuestBoard.claim(interaction.user.id, int(slot))
+    @app.command("/quests_claim")
+    async def quests_claim_cmd(ack, command, client):
+        await ack()
+        uid = command["user_id"]; channel = command["channel_id"]
+        text = (command.get("text") or "").strip()
+        try:
+            slot = int(text)
+        except ValueError:
+            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/quests_claim <slot>` (1, 2, or 3)"); return
+        ok, result = QuestBoard.claim(uid, slot)
         if not ok:
-            await interaction.response.send_message(result, ephemeral=True)
-            return
-
-        embed = discord.Embed(
-            title="🎉 quest claimed",
-            description=(
-                f"**{result['label']}**\n"
-                f"reward: `{result['reward']}` horsenncy"
-            ),
-            color=discord.Color.gold()
-        )
-        await interaction.response.send_message(embed=embed)
-
-
-async def setup(bot):
-    print("Loading Quests Cog...")
-    await bot.add_cog(Quests(bot))
-    print("Quests Cog Loaded!")
+            await client.chat_postEphemeral(channel=channel, user=uid, text=result); return
+        await client.chat_postMessage(channel=channel, text=f":tada: *quest claimed!*\n*{result['label']}*\nreward: `{result['reward']}` horsenncy")

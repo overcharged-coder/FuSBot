@@ -1,0 +1,25 @@
+# environment
+.env
+*.env
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# data files that get committed via the workflow, not manually
+# (remove these lines if you want to commit them locally too)
+# state.json
+# roast_memory.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# editor
+.vscode/
+.idea/

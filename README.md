@@ -1,716 +1,311 @@
 # FuSBot
 
-A powerful, feature-packed Discord bot with advanced roast AI, a fully simulated economy, gambling games, dungeon crawler, stock market, hunting/fishing systems, and a personal codepad environment — all using **slash commands only**.
+![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
+![Slack](https://img.shields.io/badge/Slack-Bolt-4A154B?logo=slack&logoColor=white)
+![Socket Mode](https://img.shields.io/badge/Socket%20Mode-enabled-4A154B?logo=slack&logoColor=white)
+![AI](https://img.shields.io/badge/AI-GitHub%20Models-181717?logo=github&logoColor=white)
+![Deploy](https://img.shields.io/badge/Deploy-GitHub%20Actions-2088FF?logo=githubactions&logoColor=white)
+![Status](https://img.shields.io/badge/status-active-brightgreen)
 
-The name represent the goal of this bot, to be a fun, full-server bot that will help you out! The name stands for Full (Fu) Server (S) Robot (Bot).
-
----
-
-## Activation
-
-1. Invite the bot:  
-   [FuSBot](https://discord.com/oauth2/authorize?client_id=1440004841559560214&scope=bot+applications.commands&permissions=2147483648)
-2. Add it to all apps.
-3. Use slash commands (`/`) to access all features.
+> **Full Server Bot** — roast AI, economy, RPG systems, auto-battler, stock market, hacking sim, and more. All slash commands.
 
 ---
 
-# Command Index (With Detailed Descriptions)
+## Features
+
+| Category | Systems |
+|---|---|
+| 🔥 Roast AI | Multi-model roasting, memory profiles, auto-roast, spice scoring |
+| 💰 Economy | Balance, daily, work, give, pray, leaderboard |
+| 🎲 Gambling | Blackjack, slots, coinflip, crime |
+| 🦌 Hunting & Fishing | 130+ creatures, weighted rarities, prayer buffs |
+| ⚔️ Battle & Team | Monster fights, team management, evolutions |
+| 📈 Stocks | Live simulated market, buy/sell, portfolio |
+| 🏰 Dungeon | Floor crawler, sanity, relics, raid boss, rift dives |
+| 🌀 Voidmaze | Roguelite, artifacts, anomalies, clarity system |
+| 🏟️ Arena | Auto-battler, elements, ultimates, seasons, ELO ladder |
+| 🧪 Lab | Research, experiments, breakthroughs, instability |
+| 💻 Hack | 4-phase hacking RPG using your own code files |
+| 📁 Codepad | Per-user code snippets, run in sandbox |
+| 🚢 Battleship | Full game with AI (easy → god), ELO ranking |
+| 🎩 Monopoly | Full game, AI opponent, SQLite persistence |
+| 🏛️ Guilds | Create, join, deposit, upgrade |
+| 🛒 Auction House | List, browse, buy, cancel |
+| 🗺️ Quests | Daily quest board, claim rewards |
+| 🏆 Achievements | 33 tracked milestones, mastery grades |
+| 🎖️ Titles & Badges | Unlock and equip cosmetic titles |
+| ♟️ Lichess | Live game tracking for a lichess account |
+| 🛡️ AutoMod | Spam detection, slur filter, escalation ladder |
+| 🎉 Fun | Akinator, animal facts, emoji mixup, rave, image gen |
 
 ---
 
-# 🔥 1. Roast System
+## Setup
 
-### `/roast text:"..."`  
-Generates an AI-driven roast targeting any mentioned users.  
-Supports:
-- Multi-target roasting  
-- Personal memory-based insults  
-- Roast protection detection  
-- Adjustable tone & intensity  
+### 1. Slack App
 
-### `/data user:@User`  
-Shows all roast-related stored data for a user, such as:
-- Personality profile  
-- Roasting history  
-- Protection timers  
+Create an app at [api.slack.com/apps](https://api.slack.com/apps):
 
-Auto-roast behavior automatically fires when users mention the bot.
+- **Socket Mode** → enable → copy `SLACK_APP_TOKEN` (`xapp-…`)
+- **OAuth & Permissions** → add scopes → install to workspace → copy `SLACK_BOT_TOKEN` (`xoxb-…`)
+- **Event Subscriptions** → subscribe: `message.channels`, `message.groups`, `message.im`, `message.mpim`, `reaction_added`
 
----
+Required bot scopes:
+```
+chat:write  chat:write.public  commands
+channels:history  groups:history  im:history  mpim:history
+reactions:read  files:write
+```
 
-# 📁 2. Codepad System
+### 2. Register all slash commands
 
-A fully isolated “mini workspace” stored per user.
+Add `SLACK_APP_ID` and `SLACK_CONFIG_TOKEN` (App-Level Token with `app_configurations:write`) to your secrets, then run once:
 
-### `/code_new filename`  
-Creates a new file in your personal code directory.
+```bash
+python register_slack_app.py
+```
 
-### `/code_edit filename`  
-Opens a modal to edit the file content.
+### 3. GitHub Secrets
 
-### `/code_view filename`  
-Displays the file’s full content in an embed.
+Go to **Settings → Secrets → Actions** and add:
 
-### `/code_list`  
-Shows all files you have created.
+| Secret | Description |
+|---|---|
+| `SLACK_BOT_TOKEN` | `xoxb-…` bot token |
+| `SLACK_APP_TOKEN` | `xapp-…` socket mode token |
+| `GITHUB` | GitHub PAT for AI models |
+| `PAT_TOKEN` | GitHub PAT for pushing state |
+| `GROQ` | Groq API key *(optional)* |
+| `GEMINI_API_KEY` | Gemini API key *(optional)* |
+| `OPENROUTER_KEY` | OpenRouter key *(optional)* |
 
-### `/code_delete filename`  
-Deletes a file permanently.
+### 4. Run
 
-### `/code_run filename`  
-Executes the file in a safe sandbox environment and returns the output.
+The bot runs automatically via GitHub Actions every 6 hours. To start manually:
 
-Great for small scripts, notes, templates, or meme code.
+**Actions → Run Slack Bot → Run workflow**
 
----
-
-# 💰 3. Economy System (horsenncy)
-
-## Core Currency Actions
-
-### `/balance [user]`  
-View your own or another user’s horsenncy balance.
-
-### `/daily`  
-Claim a random daily reward (100–300 horsenncy). 24h cooldown.
-
-### `/work`  
-Perform one of 100+ possible jobs with varying payment.  
-Includes:
-- Promotions  
-- Pay range scaling  
-- 1 hour cooldown  
-- Chance of triple pay bonuses  
-
-### `/give user amount`  
-Transfer horsenncy to another user.
-
-### `/pray`  
-Pray to Horsey. Grants a prayer point which boosts:
-- Gambling win multipliers  
-- Crime/luck modifiers  
-- Dungeon bonuses  
-10% chance to *reset your prayer points to zero.*
-
-### `/leaderboard`  
-Shows the top 10 wealthiest players.
+Or locally:
+```bash
+pip install -r requirements.txt
+python app.py
+```
 
 ---
 
-# 🎲 4. Gambling Suite
+## How it works
 
-### `/blackjack bet`  
-Full interactive Blackjack:
-- Animated ASCII-style cards  
-- Hit/Stand  
-- Dynamic dealer logic  
-- Prayer boost applies  
-- Proper Ace logic  
-
-### `/slots bet`  
-3×3 slot machine with:
-- Multi-line wins  
-- Rows, columns, diagonals  
-- Mythic jackpots & god events  
-- Animated reveal sequence  
-
-### `/coinflip side amount`  
-50/50 gamble.  
-Prayer boost affects winnings.  
-Heads or tails.
-
-### `/crime`  
-Commit crimes with varying payout.  
-Includes:
-- High-risk heists  
-- Legendary multipliers  
-- Rare 10× jackpots  
-- Serious failures (police can wipe all your money)
+The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files (`state.json`, `roast_memory.json`, SQLite DBs, etc.) are committed back to the repo automatically so nothing is lost between runs.
 
 ---
 
-# 🦌 5. Hunting System — `/hunt`
+## Command Reference
 
-Go hunting and catch one of over **130+ creatures**, ranging from:
-- Common wildlife  
-- Rare beasts  
-- Mythic monsters  
-- Dragons, phoenixes, cosmic entities  
+<details>
+<summary><b>🔥 Roast</b></summary>
 
-Features:
-- Weighted rarities  
-- Critical hits  
-- Prayer-based reward scaling  
-- Escape mechanics  
-- Loot added to your Owned Animals
+| Command | Description |
+|---|---|
+| `/roast @user` | AI-roast someone using memory + multi-model scoring |
+| `/roastmode fast\|deep\|adjustable` | Set your roast style |
+| `/stoproast` | Exit roast mode |
+| `/autor on\|off` | Auto-roast anyone who mentions the bot in this channel |
+| `/data [@user]` | View stored memory profile |
 
----
+</details>
 
-# 🎣 6. Fishing System — `/fish`
+<details>
+<summary><b>💰 Economy</b></summary>
 
-Similar to hunting but with **fish, sea monsters, leviathans, and cosmic aquatic creatures**.
+| Command | Description |
+|---|---|
+| `/balance [@user]` | Check balance |
+| `/daily` | Claim daily reward |
+| `/work` | Work a job for horsenncy |
+| `/give @user amount` | Transfer horsenncy |
+| `/pray` | Gain a prayer boost |
+| `/leaderboard` | Top 10 richest |
+| `/coinflip amount [heads\|tails]` | 50/50 gamble |
+| `/blackjack amount` | Full blackjack game |
+| `/slots amount` | 3×3 slot machine |
+| `/crime` | High-risk heist |
 
-Features:
-- Rod break chance  
-- Weighted fishing table  
-- Jackpot catches  
-- Prayer buffs  
-- Mythic sea creatures  
-- Doubled rewards from special items
+</details>
 
----
+<details>
+<summary><b>🛍️ Shop & Items</b></summary>
 
-# ⚔️ 7. Battle System — `/battle`
+| Command | Description |
+|---|---|
+| `/shop` | Browse all items |
+| `/buy item [amount]` | Purchase an item |
+| `/inventory [@user]` | View items |
+| `/use item` | Use an item |
 
-Fight one of 150+ monsters with:
-- Base win rates  
-- Team bonuses  
-- Prayer multipliers  
-- Critical strikes  
-- Huge boss variants (World Eater, Titans, Dragons)
+</details>
 
-If you win:
-- Earn horsenncy based on monster difficulty  
-If you lose:
-- Drop horsenncy
+<details>
+<summary><b>📈 Stocks</b></summary>
 
----
+| Command | Description |
+|---|---|
+| `/stocks` | View market prices and your portfolio |
+| `/stocks_buy SYMBOL amount` | Buy shares |
+| `/stocks_sell SYMBOL amount` | Sell shares |
 
-# 🐾 8. Animals & Team System — `/team`
+</details>
 
-Your hunted creatures can join your battle team.
+<details>
+<summary><b>🦌 Hunting, Fishing & Battle</b></summary>
 
-### `/team list`  
-Shows all owned animals grouped by type, rarity, and strength.
+| Command | Description |
+|---|---|
+| `/hunt` | Hunt one of 130+ creatures |
+| `/fish` | Fish for aquatic creatures |
+| `/battle [@user]` | Fight a monster or player |
+| `/team list\|add\|remove` | Manage your battle team |
 
-### `/team add index`  
-Adds an owned animal to your battle team (max 8).
+</details>
 
-### `/team remove index`  
-Removes an animal from your battle team.
+<details>
+<summary><b>🏰 Deep Modes</b></summary>
 
-Team strength increases battle win chance.
+| Command | Description |
+|---|---|
+| `/dungeon` | Enter the dungeon RPG |
+| `/voidmaze` | Enter the void maze roguelite |
+| `/arena` | Enter the auto-battler arena |
+| `/arena_buy item` | Buy an arena upgrade |
+| `/arena_setteam names…` | Set your arena team |
+| `/lab` | Enter the research lab |
 
----
+</details>
 
-# 🏛️ 9. Stock Market System
+<details>
+<summary><b>💻 Hack & Codepad</b></summary>
 
-### `/stocks`  
-Opens the live Horsey Stock Exchange dashboard:
-- Real-time simulated price changes  
-- Market-wide events  
-- Symbol-specific news  
-- Random volatility  
-- Personal portfolio display  
+| Command | Description |
+|---|---|
+| `/hack` | Run a 4-phase hacking sim using your code files |
+| `/hack_profile [@user]` | View hack stats |
+| `/hack_targets` | List available targets |
+| `/hack_chaos` | Trigger global chaos event |
+| `/hack_chaos_state` | View current chaos level |
+| `/code_new name lang code` | Save a code snippet |
+| `/code_edit name code` | Edit a snippet |
+| `/code_view name` | View a snippet |
+| `/code_list` | List your snippets |
+| `/code_delete name` | Delete a snippet |
+| `/code_run name` | Run a snippet |
 
-### `/stocks_buy SYMBOL AMOUNT`  
-Purchase shares based on current price.
+</details>
 
-### `/stocks_sell SYMBOL AMOUNT`  
-Sell shares to earn horsenncy.
+<details>
+<summary><b>🚢 Battleship</b></summary>
 
-The market fluctuates constantly — check `/stocks` often.
+| Command | Description |
+|---|---|
+| `/battleship [@user \| ai diff]` | Start a game |
+| `/bs_place A0 r\|d` | Place your next ship |
+| `/bs_fire B5` | Fire at a coordinate |
+| `/bs_status` | View your boards |
+| `/bs_forfeit` | Forfeit |
+| `/bs_resume` | Resume a saved game |
+| `/bs_stats [@user]` | Win/loss/ELO stats |
+| `/bs_leaderboard` | ELO leaderboard |
 
----
+</details>
 
-# 🏰 10. Dungeon System — `/dungeon`
+<details>
+<summary><b>🎩 Monopoly</b></summary>
 
-A full RPG dungeon crawler with dozens of mechanics.
+| Command | Description |
+|---|---|
+| `/monopoly_start [@opponent]` | Start a game (vs player or AI) |
+| `/monopoly_stop` | End the current game |
+| `/monopoly_resume` | Resume a saved game |
 
-### CORE FEATURES
-- Floor exploration  
-- Ambient events & traps  
-- Sanity mechanics  
-- Energy system  
-- Mutations  
-- Curses  
-- Relics  
-- Global raid boss  
-- Rift instability  
-- Skill point allocation  
-- Randomized loot & enemies  
-- PvP dungeon invasions  
-- Rift dives  
-- Final cash-out rewards  
+</details>
 
-### BUTTON ACTIONS
-- **Explore** — Fights, loot, relics, traps, shrines  
-- **Rest** — Heal or be ambushed  
-- **Skills** — Level up Might, Ward, Greed, Warp, Instinct  
-- **Raid Boss** — Contribute damage to the world boss  
-- **Rift Dive** — Extremely dangerous but high-reward  
-- **Leave** — End your run and earn horsenncy  
+<details>
+<summary><b>🏛️ Guilds & Auction</b></summary>
 
-Runs are tracked permanently.
+| Command | Description |
+|---|---|
+| `/guild_create name` | Create a guild |
+| `/guild_join id` | Join a guild |
+| `/guild_leave` | Leave your guild |
+| `/guild_info [id]` | View guild info |
+| `/guild_deposit amount` | Deposit to guild bank |
+| `/guild_upgrade` | Upgrade guild level |
+| `/auction_sell item amount price` | List an item |
+| `/auction_browse` | Browse listings |
+| `/auction_buy id` | Buy a listing |
+| `/auction_cancel id` | Cancel your listing |
 
----
+</details>
 
-# 🛍️ 11. Shop & Items
+<details>
+<summary><b>🗺️ Quests, Achievements & Profile</b></summary>
 
-### `/shop`  
-View all available items.
+| Command | Description |
+|---|---|
+| `/quests [@user]` | View daily quest board |
+| `/quests_claim slot` | Claim a completed quest |
+| `/achievements [@user]` | View achievement progress |
+| `/profile [@user]` | View full profile |
+| `/collections [@user]` | View collector stats |
+| `/titles [@user]` | View unlocked titles |
+| `/title_equip title` | Equip a title |
+| `/badge [@user]` | View badges |
 
-### `/buy item_id`  
-Purchase an item by its ID.
+</details>
 
-### `/inventory [user]`  
-View your own or another user’s items.
+<details>
+<summary><b>♟️ Lichess</b></summary>
 
-### `/use item_id [target]`  
-Use an item — effects vary dramatically.
+| Command | Description |
+|---|---|
+| `/lichess username` | View lichess profile |
+| `/lichess_game game_id` | View a game |
+| `/lichess_stream username` | Stream live games |
 
-Item categories:
-- Explosive items (missiles)
-- RNG chaos artifacts  
-- Currency modifiers  
-- Time manipulation items  
-- Dungeon modifiers  
-- Red Button (steals from random user)  
-- Gremlins, cursed ducks, orbs, void objects  
-- Buffs to hunt/fish/battle/work/daily  
+</details>
 
-Over **30+ items**, each with entirely custom logic.
+<details>
+<summary><b>🛡️ AutoMod</b></summary>
 
----
+| Command | Description |
+|---|---|
+| `/automod` | View current settings |
+| `/automod_reset` | Reset config |
+| `/automod_punishment warn\|mute\|kick` | Set punishment |
+| `/automod_slurs on\|off` | Toggle slur filter |
+| `/automod_spam on\|off` | Toggle spam detection |
+| `/automod_filters` | View active filters |
+| `/automod_settings` | Full settings view |
 
-# 🤖 12. Lichess Bot
+</details>
 
-**User: [@icbmsaregoated2](https://lichess.org/@/icbmsaregoated2)**
-### '/lichess'
+<details>
+<summary><b>🎉 Fun & Misc</b></summary>
 
-View current status of lichess bot on a user-friendly dashbored.
+| Command | Description |
+|---|---|
+| `/aki` | Play Akinator |
+| `/animal` | Random animal fact |
+| `/emojimixup` | Mix up emoji meanings |
+| `/rave` | Start a rave |
+| `/img prompt` | Generate an image |
+| `/afk [message]` | Set AFK status |
+| `/recommend` | Get a personalised activity suggestion |
+| `/whatsnext` | See what to do next |
+| `/help [topic]` | Help guide |
+| `/start` | Beginner guide |
+| `/setup_view` | Workspace setup |
 
-### '/lichess_game'
-
-View current moves of the game it is playing.
-
-**Example statistics**
-
-- Current rating
-- Time control
-- Variant
-- Opponent rating
-
----
-
-# 🌀 13. Voidmaze System — `/voidmaze`
-
-A cosmic, sanity-bending roguelite where every choice reshapes both **you** and the **Maze**.
-
-### CORE FEATURES
-- Depth-based progression  
-- Clarity (HP) system with degrading thresholds  
-- Artifacts with powerful combo synergies  
-- Anomalies that corrupt and hinder your run  
-- Boons granting rare buffs  
-- Fragments, keys, and combo chaining  
-- Procedurally generated rooms  
-- Global world-state variables (Storm, Pulse, Season)  
-- Seasonal shifts that alter Maze behavior  
-- Passive synergy engine that triggers automatically  
-- High-risk collapse events that can delete horsenncy  
-- Run history, best depth, streak tracking  
-
----
-
-### ROOM TYPES
-- **Door of the Abyss** — Gain depth & fragments; lose clarity; anomaly chance  
-- **Tangle Key Node** — Puzzle granting keys, clarity, or anomalies  
-- **Artifact Vault** — Earn artifacts with scaling power; may backlash  
-- **Reality Fracture** — Extremely high risk; artifacts, wealth, anomalies, or instant collapse  
-- **Locus of Stillness** — Restore clarity or be ambushed  
-- **Echo Storm** — Alters world-state (Storm, Pulse, Season)  
-
----
-
-### BUTTON ACTIONS
-- **Room 1 / Room 2 / Room 3** — Choose one of three procedurally generated events  
-- **Leave Maze** — End the run and convert progress into horsenncy  
-
-Rewards depend on:  
-Depth, artifacts, anomalies, fragments, keys, combo streak, and world-state conditions.
-
----
-
-# 🏟️ 14. Arena System — `/arena`
-
-A fast-paced **auto-battler arena** where your animals fight through elemental matchups, ultimates, passives, and seasonal modifiers.
-
-### CORE FEATURES
-- Auto-battler combat with full stat generation  
-- Elements, roles, rarities, crits, shields, and speed ordering  
-- Ultimate abilities for every element  
-- Status effects: burn, poison, bleed, stun, regen  
-- Environment cycles that boost/nerf certain elements  
-- Global Arena Seasons & Chaos meter  
-- Match Mutators (Bloodsport, Iron Wall, Arcane Storm, etc.)  
-- Win streak rewards & evolution system  
-- Permanent passive upgrades via Crown Shop  
-- Rating ladder with top-10 leaderboard  
-- Daily fight tokens (3 per day)
+</details>
 
 ---
 
-### WHAT YOU CAN DO
-- **Fight Match** — Enter a full auto-battle with animations, abilities, and ultimates  
-- **Edit Team** — Choose up to 5 animals from your Owned Animals  
-- **View Ladder** — See global top ratings  
-- **Crown Shop** — Buy permanent Arena buffs  
-- **Leave Arena** — Exit the lobby
-
----
-
-### BATTLE SYSTEM
-Each fighter is assigned:
-- **Element** (fire, water, air, earth, dark, mystic, beast)  
-- **Role** (tank, striker, support, healer, trickster)  
-- **Rarity** (Common → Legendary)  
-- **Unique passive ability**  
-- **Randomized combat stats:** HP, Power, Defense, Speed, Crit Rate
-
-Combat includes:
-- Type advantages  
-- Shields, buffs, debuffs  
-- DOTs (burn/poison/bleed)  
-- Momentum boosts  
-- Round-end passives (heals, speed auras, etc.)  
-- Full team synergy bonuses  
-
----
-
-### EVOLUTIONS
-Win streaks evolve animals into stronger forms (Wolf → Dire Wolf → Moon Wolf, etc.).  
-Evolutioned units replace the older form in future teams.
-
----
-
-### REWARDS
-Match results give:
-- **Rating** (MMR)  
-- **XP** (leveling → crowns)  
-- **Crowns** (permanent upgrades)  
-- **Streak bonuses**  
-- **Seasonal world progression**
-
----
-
-### SUMMARY
-The Arena is a **deep auto-battler** combining:
-- Team building  
-- Synergies  
-- RNG chaos  
-- Strategic passives  
-- Seasonal meta shifts  
-
-Master your squad, climb the ladder, and become the Arena Champion.
-
----
-
-# 🧪 15. Research Lab System — `/lab`
-
-A high-risk, high-reward **scientific progression system** where stability, anomalies, breakthroughs, and world instability shape your research journey.
-
-### CORE FEATURES
-- Lab leveling & XP system  
-- Stability & max-stability management  
-- Global instability meter  
-- Random anomalies with escalating danger  
-- Breakthroughs that permanently enhance your account  
-- Research, experiments, and stabilization cycles  
-- Lab world events shared across all players  
-- Risk-based horsenncy experiments  
-- Chance-based breakthrough unlock table  
-- Persistent logs & research queue
-
----
-
-### BUTTON ACTIONS
-- **Research** — Gain XP, raise instability, reduce stability, chance for breakthroughs  
-- **Experiment** — Gamble horsenncy with high variance; can yield XP, anomalies, or catastrophes  
-- **Stabilize** — Spend lab XP to restore stability, reduce world instability, and sometimes purge anomalies  
-- **Breakthroughs** — View all permanent upgrades unlocked  
-- **Leave** — Exit the lab interface
-
----
-
-### SYSTEM MECHANICS
-
-#### **Stability**
-- Core safety meter: if it hits zero → **Core Fracture** anomaly  
-- Experiments & research reduce stability  
-- Stabilization restores stability and may remove anomalies
-
-#### **Instability (World)**
-- Shared across labs globally  
-- Rises with research & experiments  
-- High levels increase breakthrough rates and catastrophe odds  
-- Certain thresholds trigger world events
-
-#### **Breakthroughs**
-Unique permanent upgrades such as:
-- Efficient Stock Algos  
-- Dungeon Resonance Mapping  
-- Arena Combat Analytics  
-- Prayer Wave Amplifier  
-- Casino Edge Tuning  
-- Meta-Currency Compression  
-
-Each breakthrough adds flavor, future upgrades, or system synergies.
-
-#### **Experiments**
-Outcome tiers:
-- **Major Success** — High horsenncy gain + XP, major instability spike  
-- **Minor Success** — Small net gain, mild instability  
-- **Failure** — Horsenncy loss + new anomaly  
-- **Catastrophic Failure** — Huge loss, stability crash, severe anomaly
-
----
-
-### SUMMARY
-The Research Lab is a **progression + risk management system** built around:
-- XP growth  
-- Stability juggling  
-- Random anomalies  
-- Permanent breakthroughs  
-- Horsenncy wagers  
-- A global evolving instability field  
-
-Master the lab, tame the anomalies, and advance scientific chaos.
-
----
-
-# 🛠️ 16. Hacker RPG System — `/hack`
-
-A fully simulated **multi-phase hacking RPG** powered by your **own codepad scripts**.  
-Every hack evaluates your scripts for performance, efficiency, stealth, stability, and complexity — creating a deeply customizable cyber-RPG loop.
-
----
-
-### CORE FEATURES
-- Four-phase hacking chain: **Recon → Access → Payload → Extraction**  
-- Script analysis engine (performance, entropy, recursion, imports, stealth, parallelism, stability)  
-- Automatic module selection or manual script assignment  
-- Difficulty tiers (1–5) with unique target security profiles  
-- Skill, Tier, Reputation, Trace, and XP progression  
-- Success quality grading (flawless, barely, almost, failed)  
-- Synergy bonuses for archetype alignment or diversity  
-- Animated phase-by-phase hack visualization  
-- Cooldowns that adapt to skill, tier, and trace  
-- Persistent hack history (20 most recent runs stored)
-
----
-
-### BUTTONLESS SYSTEM  
-All actions occur through the `/hack` command and your **codepad**.
-
-### HOW IT WORKS
-1. Create code files using `/code_new` and `/code_edit`.  
-2. Name them according to role keywords:  
-   - **Recon** — recon, scan, probe  
-   - **Access** — access, login, auth  
-   - **Payload** — payload, inject, exploit  
-   - **Extraction** — extract, exfil, leak  
-3. Run `/hack` and optionally specify which scripts to use.  
-4. Watch the engine analyze your code and simulate a cyber intrusion.
-
----
-
-### PHASES
-- **Reconnaissance** — Mapping endpoints, fingerprinting, topology analysis  
-- **Access Vector** — Credential distortion, solver heuristics, exploit probes  
-- **Payload Orchestration** — Packing, obfuscation, execution hooks  
-- **Extraction** — Proxy braiding, masking envelopes, sealing channels  
-
-Each phase compares:  
-**your script power** vs **target threshold**, modified by skill, tier, trace, and synergy.
-
----
-
-### OUTCOME TYPES
-- **Perfect Chain** — Stunning execution; massive XP & stat boosts  
-- **Strong** — Solid multi-phase breach  
-- **Clean** — Consistent success  
-- **Shaky** — Success with instability  
-- **Near Miss** — Almost broke in  
-- **Messy** — Failed with noise  
-- **Catastrophic** — Severe failure; high trace
-
----
-
-### PROGRESSION
-Hacks reward or penalize:
-- **XP** (skill-up & tier progression)  
-- **Skill** (hack power scaling)  
-- **Reputation** (public notoriety)  
-- **Trace** (forensic heat)  
-- **Streaks** (bonus consistency multiplier)
-
-Trace also increases cooldown time.
-
----
-
-### CHAIN BUILDING
-During execution:
-- System animates each phase  
-- Evaluates module matchups  
-- Calculates margin %, quality, synergy, RNG volatility  
-- Produces a detailed final report
-
----
-
-# 🛡️ 17. AutoMod System — `/automod`
-
-A **lightweight, behavior-based moderation system** designed to keep chat readable **without punishing slang, typos, or casual talk**.
-
-AutoMod focuses on **how users behave**, not *how they type*.
-
-Disabled by default so no suprises :)
-
-**AutoMod is intentionally not very feature-heavy since human moderation is of-course better. AutoMod is recommended because it controls safe parameters to stop immediate threats to your server.**
-
----
-
-## CORE PRINCIPLES
-
-- ✅ No punishment for short messages like `fr`, `gg`, `a`
-- ✅ Spam is detected by **message bursts**, not message content
-- ✅ Slur filtering is **server-configurable**
-- ✅ Gradual escalation with clear feedback
-- ✅ Fully slash-command controlled
-- ✅ Disabled by default
-
----
-
-## 🚨 PUNISHMENT ESCALATION
-
-AutoMod uses a **4-step escalation ladder**:
-
-1. **First Offense**  
-   ⚠️ Public warning pinging the user  
-   _Message is deleted_
-
-2. **Second Offense**  
-   🔇 5-minute mute (timeout)  
-   _Public notice sent_
-
-3. **Third Offense**  
-   🚪 User is kicked from the server  
-   _Public message: “User was kicked due to reason”_
-
-4. **Fourth Offense**  
-   🔨 User is banned  
-   _Public message: “User was banned due to reason”_
-
-Offenses are tracked per-user, per-server.
-
----
-
-## 📊 SPAM DETECTION
-
-Spam is detected using **rate limits**, not content analysis.
-
-**Default rules:**
-- 5 or more messages
-- Within a 6-second window
-
-This avoids false positives caused by:
-- Discord message delays
-- Typos
-- Casual slang
-- Fast conversations
-
----
-
-## 🚫 SLUR FILTERING
-
-AutoMod supports a **customizable banned word list**.
-
-- Matches whole words only
-- Case-insensitive
-- Slurs are censored when listed
-- Punishment applies immediately
-
-Example display:
-
-- f***
-- n****
-
----
-
-## 🧩 SLASH COMMANDS
-
-### `/automod on`
-Enables AutoMod for the server.
-
-### `/automod off`
-Disables AutoMod.
-
----
-
-### `/automod_slurs list`
-Shows all configured slurs (censored).
-
-### `/automod_slurs add <word>`
-Adds a word to the banned list.
-
-### `/automod_slurs remove <word>`
-Removes a word from the banned list.
-
----
-
-## 🔒 PERMISSIONS
-
-Only users with **moderation privileges** can control AutoMod:
-- Manage Messages
-- Administrator
-- Server Owner
-
----
-
-## ⚙️ CONFIG STORAGE
-
-AutoMod stores configuration in:
-
-**automod_config.json**
-
-
-Tracked data includes:
-- Enabled / disabled state
-- Slur list per server
-
-This file is safe to commit and persists across restarts.
-
----
-
-## 🧠 DESIGN PHILOSOPHY
-
-AutoMod is intentionally **minimal**:
-- No AI moderation
-- No sentiment guessing
-- No typo punishment
-- No guessing intent
-
-It exists to stop **spam and abuse**, not normal chat.
-
----
-
-**Result:**  
-Clean channels, fewer false positives, happier users.
-
----
-
-### SUMMARY
-The `/hack` system is a **deep technical RPG** where:
-- Your scripts = your equipment  
-- Your skill & tier = your stats  
-- Trace = your danger meter  
-- Each target = a unique puzzle
-
-Build better scripts, form strong phase chains, and climb the hacker ranks.
-
----
-
-# End
-
-**Thank you for reading :) Hope you enjoy the bot!**
+*FuSBot — Full (Fu) Server (S) Bot*
