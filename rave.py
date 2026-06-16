@@ -166,25 +166,27 @@ async def setup(app):
     @app.command("/rave")
     async def rave_cmd(ack, command, client):
         await ack()
-        try:
-            await _ensure_font()
-        except RuntimeError as e:
-            await client.chat_postEphemeral(channel=command["channel_id"], user=command["user_id"], text=str(e))
-            return
-        uid = command["user_id"]
-        _sessions[uid] = {}
-        await client.chat_postMessage(channel=command["channel_id"], blocks=_session_blocks(uid), text="Rave Builder")
+        uid = command["user_id"]; channel = command["channel_id"]
+        parts = (command.get("text") or "").strip().split(None, 1)
+        sub = parts[0].lower() if parts else ""
+        arg = parts[1].strip() if len(parts) > 1 else ""
 
-    @app.command("/ravebg")
-    async def ravebg_cmd(ack, command, client):
-        await ack()
-        uid = command["user_id"]
-        text = (command.get("text") or "").strip()
-        if not text:
-            await client.chat_postEphemeral(channel=command["channel_id"], user=uid, text="Usage: `/ravebg <upload_key>` — share a video file and set its key here.")
-            return
-        _sessions.setdefault(uid, {})["upload"] = text
-        await client.chat_postEphemeral(channel=command["channel_id"], user=uid, text=f"Upload key set to `{text}`.")
+        if sub == "bg":
+            upload_key = arg
+            if not upload_key:
+                await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/rave bg <upload_key>` — share a video file and set its key here.")
+                return
+            _sessions.setdefault(uid, {})["upload"] = upload_key
+            await client.chat_postEphemeral(channel=channel, user=uid, text=f"Upload key set to `{upload_key}`.")
+
+        else:
+            try:
+                await _ensure_font()
+            except RuntimeError as e:
+                await client.chat_postEphemeral(channel=channel, user=uid, text=str(e))
+                return
+            _sessions[uid] = {}
+            await client.chat_postMessage(channel=channel, blocks=_session_blocks(uid), text="Rave Builder")
 
     @app.action("rave_mode")
     async def rave_mode(ack, body, client):

@@ -62,30 +62,33 @@ async def setup(app):
         await ack()
         import re as re_mod
         uid = command["user_id"]; channel = command["channel_id"]
-        text = (command.get("text") or "").strip(); target_id = uid; mention = f"<@{uid}>"
-        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
-        if m: target_id = m.group(1); mention = f"<@{target_id}>"
-        data = get_user(target_id); titles = unlocked_titles(target_id)
-        equipped = data.get("equipped_title") or titles[0]
-        lines = "\n".join(f"• {t}" for t in titles[:25])
-        msg = (
-            f":medal: *{mention}'s Titles*\n"
-            f"equipped: `{equipped}`\n"
-            f"unlocked: `{len(titles)}`\n\n"
-            f"{lines}\n\n_use `/title_equip <title>` to equip one_"
-        )
-        await client.chat_postMessage(channel=channel, text=msg)
+        text = (command.get("text") or "").strip()
+        parts = text.split(None, 1)
+        action = parts[0].lower() if parts else ""
+        arg = parts[1].strip() if len(parts) > 1 else ""
 
-    @app.command("/title_equip")
-    async def title_equip_cmd(ack, command, client):
-        await ack()
-        uid = command["user_id"]; channel = command["channel_id"]
-        title_input = (command.get("text") or "").strip()
-        if not title_input:
-            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/title_equip <title name>`"); return
-        data = get_user(uid); titles = unlocked_titles(uid); wanted = normalize(title_input)
-        match = next((t for t in titles if normalize(t) == wanted), None)
-        if not match:
-            await client.chat_postEphemeral(channel=channel, user=uid, text="that title isnt unlocked for you"); return
-        data["equipped_title"] = match; save_state()
-        await client.chat_postMessage(channel=channel, text=f"equipped title set to `{match}`")
+        if action == "equip":
+            title_input = arg
+            if not title_input:
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/titles equip <title name>`"); return
+            data = get_user(uid); titles = unlocked_titles(uid); wanted = normalize(title_input)
+            match = next((t for t in titles if normalize(t) == wanted), None)
+            if not match:
+                await client.chat_postEphemeral(channel=channel, user=uid, text="that title isnt unlocked for you"); return
+            data["equipped_title"] = match; save_state()
+            await client.chat_postMessage(channel=channel, text=f"equipped title set to `{match}`")
+
+        else:
+            target_id = uid; mention = f"<@{uid}>"
+            m = re_mod.search(r"<@([A-Z0-9]+)>", text)
+            if m: target_id = m.group(1); mention = f"<@{target_id}>"
+            data = get_user(target_id); titles = unlocked_titles(target_id)
+            equipped = data.get("equipped_title") or titles[0]
+            lines = "\n".join(f"• {t}" for t in titles[:25])
+            msg = (
+                f":medal: *{mention}'s Titles*\n"
+                f"equipped: `{equipped}`\n"
+                f"unlocked: `{len(titles)}`\n\n"
+                f"{lines}\n\n_use `/titles equip <title>` to equip one_"
+            )
+            await client.chat_postMessage(channel=channel, text=msg)

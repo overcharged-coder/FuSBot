@@ -122,33 +122,35 @@ async def setup(app):
         await ack()
         import re as re_mod
         uid = command["user_id"]; channel = command["channel_id"]
-        text = (command.get("text") or "").strip(); target_id = uid; mention = f"<@{uid}>"
-        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
-        if m: target_id = m.group(1); mention = f"<@{target_id}>"
-        board = QuestBoard.board_for(target_id); today = QuestBoard.today_key()
-        complete_count = sum(1 for q in board if q["done"]); claimed_count = sum(1 for q in board if q["claimed"])
-        lines = []
-        for quest in board:
-            status = ":white_check_mark: claimed" if quest["claimed"] else ":large_green_circle: done" if quest["done"] else ":large_yellow_circle: in progress"
-            lines.append(f"`{quest['index']}` *{quest['label']}*\n{status} • `{quest['current']}` / `{quest['goal']}` • reward `{quest['reward']}`")
-        board_text = "\n\n".join(lines) if lines else "no quests rolled"
-        msg = (
-            f":scroll: *{mention}'s Daily Quests*\n"
-            f"day `{today}` • completed `{complete_count}` / `{len(board)}` • claimed `{claimed_count}` / `{len(board)}`\n\n"
-            f"{board_text}\n\n_use `/quests_claim <slot>` to claim a finished quest_"
-        )
-        await client.chat_postMessage(channel=channel, text=msg[:3000])
-
-    @app.command("/quests_claim")
-    async def quests_claim_cmd(ack, command, client):
-        await ack()
-        uid = command["user_id"]; channel = command["channel_id"]
         text = (command.get("text") or "").strip()
-        try:
-            slot = int(text)
-        except ValueError:
-            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/quests_claim <slot>` (1, 2, or 3)"); return
-        ok, result = QuestBoard.claim(uid, slot)
-        if not ok:
-            await client.chat_postEphemeral(channel=channel, user=uid, text=result); return
-        await client.chat_postMessage(channel=channel, text=f":tada: *quest claimed!*\n*{result['label']}*\nreward: `{result['reward']}` horsenncy")
+        parts = text.split(None, 1)
+        action = parts[0].lower() if parts else ""
+        arg = parts[1].strip() if len(parts) > 1 else ""
+
+        if action == "claim":
+            try:
+                slot = int(arg if arg else "0")
+            except ValueError:
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/quests claim <slot>` (1, 2, or 3)"); return
+            ok, result = QuestBoard.claim(uid, slot)
+            if not ok:
+                await client.chat_postEphemeral(channel=channel, user=uid, text=result); return
+            await client.chat_postMessage(channel=channel, text=f":tada: *quest claimed!*\n*{result['label']}*\nreward: `{result['reward']}` horsenncy")
+
+        else:
+            target_id = uid; mention = f"<@{uid}>"
+            m = re_mod.search(r"<@([A-Z0-9]+)>", text)
+            if m: target_id = m.group(1); mention = f"<@{target_id}>"
+            board = QuestBoard.board_for(target_id); today = QuestBoard.today_key()
+            complete_count = sum(1 for q in board if q["done"]); claimed_count = sum(1 for q in board if q["claimed"])
+            lines = []
+            for quest in board:
+                status = ":white_check_mark: claimed" if quest["claimed"] else ":large_green_circle: done" if quest["done"] else ":large_yellow_circle: in progress"
+                lines.append(f"`{quest['index']}` *{quest['label']}*\n{status} • `{quest['current']}` / `{quest['goal']}` • reward `{quest['reward']}`")
+            board_text = "\n\n".join(lines) if lines else "no quests rolled"
+            msg = (
+                f":scroll: *{mention}'s Daily Quests*\n"
+                f"day `{today}` • completed `{complete_count}` / `{len(board)}` • claimed `{claimed_count}` / `{len(board)}`\n\n"
+                f"{board_text}\n\n_use `/quests claim <slot>` to claim a finished quest_"
+            )
+            await client.chat_postMessage(channel=channel, text=msg[:3000])

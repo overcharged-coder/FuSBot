@@ -633,27 +633,59 @@ def _arena_blocks(uid: str, arena: dict, world: dict, owned: list, current_env: 
 async def setup(app):
 
     @app.command("/arena")
-    async def arena_cmd(ack, command, client):
+    async def arena_cmd(ack, command, client, respond):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
-        user = get_user(uid); arena = user.setdefault("arena", {})
-        now = datetime.datetime.utcnow().date().isoformat()
-        if arena.get("last_token_reset") != now: arena["tokens"] = 3; arena["last_token_reset"] = now
-        for k, v in [("rating",1000),("tokens",3),("crowns",0),("wins",0),("losses",0),("streak",0),
-                     ("level",1),("xp",0),("last_log","The Arena gate creaks open."),("in_battle",False),
-                     ("loadout",[]),("passives",{}),("evolved",{}),("last_mutator",None),("last_ult","")]:
-            arena.setdefault(k, v)
-        if not arena["loadout"]:
-            arena["loadout"] = [p if isinstance(p, str) else p.get("name","Unknown") for p in user.get("team", [])[:5]]
-        world = state.setdefault("arena_world", {})
-        for k, v in [("season",1),("chaos",0.0),("total_matches",0),("last_champion",None),
-                     ("last_event","The sands are quiet."),("ladder",{}),("mutator",None)]:
-            world.setdefault(k, v)
-        owned = [p if isinstance(p, str) else p.get("name","Unknown") for p in user.get("owned_animals", [])]
-        idx = (world["season"] - 1) % len(ENVIRONMENTS); current_env = ENVIRONMENTS[idx]
-        save_state()
-        result = await client.chat_postMessage(channel=channel, blocks=_arena_blocks(uid, arena, world, owned, current_env), text="Arena")
-        _sessions[uid] = {"arena": arena, "world": world, "owned": owned, "current_env": current_env, "ts": result["ts"], "channel": channel}
+        parts = (command.get("text") or "").strip().split(None, 1)
+        sub = parts[0].lower() if parts else ""
+        arg = parts[1].strip() if len(parts) > 1 else ""
+
+        if sub == "buy":
+            items = {
+                "might": ("Might Emblem", 3, "power_boost", 0.05),
+                "haste": ("Haste Emblem", 3, "speed_boost", 0.07),
+                "ward": ("Ward Emblem", 3, "def_boost", 0.07),
+                "luck": ("Lucky Emblem", 4, "crit_boost", 0.03),
+            }
+            item_key = arg.lower()
+            if item_key not in items:
+                await respond("Usage: `/arena buy <might|haste|ward|luck>`"); return
+            name, cost, key, amount = items[item_key]
+            user = get_user(uid); arena = user.setdefault("arena", {})
+            arena.setdefault("crowns", 0); arena.setdefault("passives", {})
+            if arena["crowns"] < cost:
+                await respond(f"Not enough crowns. Need {cost}, have {arena['crowns']}."); return
+            arena["crowns"] -= cost; arena["passives"][key] = arena["passives"].get(key, 0.0) + amount
+            arena["last_log"] = f"Purchased {name}."
+            save_state(); await respond(f":medal: Purchased *{name}*! Your {key} is now {arena['passives'][key]:.2f}.")
+
+        elif sub == "setteam":
+            if not arg:
+                await respond("Usage: `/arena setteam animal1, animal2, ...` (up to 5, comma-separated)"); return
+            chosen = [s.strip() for s in arg.split(",") if s.strip()][:5]
+            user = get_user(uid); arena = user.setdefault("arena", {}); arena["loadout"] = chosen
+            arena["last_log"] = f"Team updated: {', '.join(chosen)}"; save_state()
+            await respond(f":stadium: Team set: {', '.join(chosen)}")
+
+        else:
+            user = get_user(uid); arena = user.setdefault("arena", {})
+            now = datetime.datetime.utcnow().date().isoformat()
+            if arena.get("last_token_reset") != now: arena["tokens"] = 3; arena["last_token_reset"] = now
+            for k, v in [("rating",1000),("tokens",3),("crowns",0),("wins",0),("losses",0),("streak",0),
+                         ("level",1),("xp",0),("last_log","The Arena gate creaks open."),("in_battle",False),
+                         ("loadout",[]),("passives",{}),("evolved",{}),("last_mutator",None),("last_ult","")]:
+                arena.setdefault(k, v)
+            if not arena["loadout"]:
+                arena["loadout"] = [p if isinstance(p, str) else p.get("name","Unknown") for p in user.get("team", [])[:5]]
+            world = state.setdefault("arena_world", {})
+            for k, v in [("season",1),("chaos",0.0),("total_matches",0),("last_champion",None),
+                         ("last_event","The sands are quiet."),("ladder",{}),("mutator",None)]:
+                world.setdefault(k, v)
+            owned = [p if isinstance(p, str) else p.get("name","Unknown") for p in user.get("owned_animals", [])]
+            idx = (world["season"] - 1) % len(ENVIRONMENTS); current_env = ENVIRONMENTS[idx]
+            save_state()
+            result = await client.chat_postMessage(channel=channel, blocks=_arena_blocks(uid, arena, world, owned, current_env), text="Arena")
+            _sessions[uid] = {"arena": arena, "world": world, "owned": owned, "current_env": current_env, "ts": result["ts"], "channel": channel}
 
     @app.action("arena_fight")
     async def arena_fight(ack, body, client):
@@ -777,34 +809,6 @@ async def setup(app):
             ]},
         ], text="Crown Shop")
 
-    @app.command("/arena_buy")
-    async def arena_buy(ack, command, client, respond):
-        await ack()
-        uid = command["user_id"]; text = (command.get("text") or "").strip().lower()
-        items = {
-            "might": ("Might Emblem", 3, "power_boost", 0.05),
-            "haste": ("Haste Emblem", 3, "speed_boost", 0.07),
-            "ward": ("Ward Emblem", 3, "def_boost", 0.07),
-            "luck": ("Lucky Emblem", 4, "crit_boost", 0.03),
-        }
-        if text not in items: await respond("Usage: `/arena_buy <might|haste|ward|luck>`"); return
-        name, cost, key, amount = items[text]
-        user = get_user(uid); arena = user.setdefault("arena", {})
-        arena.setdefault("crowns", 0); arena.setdefault("passives", {})
-        if arena["crowns"] < cost: await respond(f"Not enough crowns. Need {cost}, have {arena['crowns']}."); return
-        arena["crowns"] -= cost; arena["passives"][key] = arena["passives"].get(key, 0.0) + amount
-        arena["last_log"] = f"Purchased {name}."
-        save_state(); await respond(f":medal: Purchased *{name}*! Your {key} is now {arena['passives'][key]:.2f}.")
-
-    @app.command("/arena_setteam")
-    async def arena_setteam(ack, command, client, respond):
-        await ack()
-        uid = command["user_id"]; text = (command.get("text") or "").strip()
-        if not text: await respond("Usage: `/arena_setteam animal1, animal2, ...` (up to 5, comma-separated)"); return
-        chosen = [s.strip() for s in text.split(",") if s.strip()][:5]
-        user = get_user(uid); arena = user.setdefault("arena", {}); arena["loadout"] = chosen
-        arena["last_log"] = f"Team updated: {', '.join(chosen)}"; save_state()
-        await respond(f":stadium: Team set: {', '.join(chosen)}")
 
     @app.action("arena_leave")
     async def arena_leave(ack, body, client):

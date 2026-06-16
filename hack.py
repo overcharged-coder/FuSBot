@@ -588,59 +588,54 @@ async def setup(app):
         await client.chat_update(channel=channel, ts=ts, text=final_text)
 
     @app.command("/hack")
-    async def hack(ack, command, client):
+    async def hack(ack, command, client, respond):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
         args = (command.get("text") or "").split()
         if not args:
-            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/hack <target> [difficulty=2] [chaos=0] [recon=] [access=] [payload=] [extract=]`")
-        target = args[0]
-        opts = {"difficulty": 2, "chaos": 0, "recon": None, "access": None, "payload": None, "extract": None}
-        for a in args[1:]:
-            if "=" in a:
-                k, v = a.split("=", 1)
-                if k in ("difficulty","chaos"): opts[k] = int(v)
-                else: opts[k] = v
-        difficulty = max(1, min(5, opts["difficulty"]))
-        chaos_level = max(0, min(3, opts["chaos"]))
-        asyncio.ensure_future(_run_hack(uid, channel, client, target, difficulty, chaos_level, opts["recon"], opts["access"], opts["payload"], opts["extract"]))
+            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/hack <target> [difficulty=2] [chaos=0]` | `/hack profile` | `/hack targets` | `/hack state` | `/hack chaos <target>`")
+        sub = args[0].lower()
 
-    @app.command("/hack_chaos")
-    async def hack_chaos(ack, command, client):
-        await ack()
-        uid = command["user_id"]; channel = command["channel_id"]
-        args = (command.get("text") or "").split()
-        if not args:
-            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/hack_chaos <target> [difficulty=3]`")
-        target = args[0]; difficulty = 3
-        for a in args[1:]:
-            if a.startswith("difficulty="): difficulty = int(a.split("=",1)[1])
-        asyncio.ensure_future(_run_hack(uid, channel, client, target, max(1,min(5,difficulty)), 3, None, None, None, None))
+        if sub == "profile":
+            import re as re_mod
+            rest = " ".join(args[1:])
+            m = re_mod.search(r"<@([A-Z0-9]+)>", rest)
+            target_uid = m.group(1) if m else uid
+            profile = _engine.get_profile(target_uid)
+            hist = profile.get("hack_history", [])
+            lines = [f"{'✅' if h.get('success') else '❌'} {h.get('target','?')} d={h.get('difficulty',0)} c={h.get('chaos',0)} q={h.get('quality','?')}" for h in hist[-10:]]
+            history_text = "\n".join(lines) or "No runs yet."
+            await respond(text=f"*Hacker Profile*\n{_engine.format_profile_status(profile)}\n\n*Recent Runs:*\n{history_text}")
 
-    @app.command("/hack_profile")
-    async def hack_profile(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        profile = _engine.get_profile(uid)
-        hist = profile.get("hack_history",[])
-        lines = [f"{'✅' if h.get('success') else '❌'} {h.get('target','?')} d={h.get('difficulty',0)} c={h.get('chaos',0)} q={h.get('quality','?')}" for h in hist[-10:]]
-        history_text = "\n".join(lines) or "No runs yet."
-        await respond(text=f"*Hacker Profile*\n{_engine.format_profile_status(profile)}\n\n*Recent Runs:*\n{history_text}")
+        elif sub == "targets":
+            space = _engine.get_target_space()
+            if not space:
+                return await respond(text="No targets yet. Run `/hack <target>` first.", response_type="ephemeral")
+            lines = [f"• {t['name']} d={t['difficulty']} {t['wins']}W/{t['losses']}L sec={t['security_integrity']:.0f}" for t in list(space.values())[:30]]
+            await respond(text="*Known Targets:*\n" + "\n".join(lines))
 
-    @app.command("/hack_targets")
-    async def hack_targets(ack, command, respond):
-        await ack()
-        space = _engine.get_target_space()
-        if not space:
-            return await respond(text="No targets yet. Run `/hack` first.", response_type="ephemeral")
-        lines = [f"• {t['name']} d={t['difficulty']} {t['wins']}W/{t['losses']}L sec={t['security_integrity']:.0f}" for t in list(space.values())[:30]]
-        await respond(text="*Known Targets:*\n" + "\n".join(lines))
+        elif sub == "state":
+            profile = _engine.get_profile(uid)
+            ca = profile.get("chaos_affinity", 0.0); unlocks = profile.get("chaos_unlocks", [])
+            sv = profile.get("style_vector", {})
+            await respond(text=f"*Chaos State*\nResonance: *{ca:.1f}*\nUnlocks: {', '.join(unlocks) or 'none'}\nAggressive: {sv.get('aggressive',0):.1f}  Experimental: {sv.get('experimental',0):.1f}")
 
-    @app.command("/hack_chaos_state")
-    async def hack_chaos_state(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        profile = _engine.get_profile(uid)
-        ca = profile.get("chaos_affinity", 0.0); unlocks = profile.get("chaos_unlocks", [])
-        sv = profile.get("style_vector", {})
-        await respond(text=f"*Chaos State*\nResonance: *{ca:.1f}*\nUnlocks: {', '.join(unlocks) or 'none'}\nAggressive: {sv.get('aggressive',0):.1f}  Experimental: {sv.get('experimental',0):.1f}")
+        elif sub == "chaos":
+            if len(args) < 2:
+                return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/hack chaos <target> [difficulty=3]`")
+            target = args[1]; difficulty = 3
+            for a in args[2:]:
+                if a.startswith("difficulty="): difficulty = int(a.split("=", 1)[1])
+            asyncio.ensure_future(_run_hack(uid, channel, client, target, max(1, min(5, difficulty)), 3, None, None, None, None))
+
+        else:
+            target = args[0]
+            opts = {"difficulty": 2, "chaos": 0, "recon": None, "access": None, "payload": None, "extract": None}
+            for a in args[1:]:
+                if "=" in a:
+                    k, v = a.split("=", 1)
+                    if k in ("difficulty", "chaos"): opts[k] = int(v)
+                    else: opts[k] = v
+            difficulty = max(1, min(5, opts["difficulty"]))
+            chaos_level = max(0, min(3, opts["chaos"]))
+            asyncio.ensure_future(_run_hack(uid, channel, client, target, difficulty, chaos_level, opts["recon"], opts["access"], opts["payload"], opts["extract"]))

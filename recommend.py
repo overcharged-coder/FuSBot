@@ -251,11 +251,3 @@ async def setup(app):
         recs = _build_recommendations(uid)
         blocks = _make_recommend_blocks(uid, recs)
         await respond(blocks=blocks, text="What's next for you")
-
-    @app.command("/whatsnext")
-    async def whatsnext(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        recs = _build_recommendations(uid)
-        blocks = _make_recommend_blocks(uid, recs)
-        await respond(blocks=blocks, text="What's next for you")

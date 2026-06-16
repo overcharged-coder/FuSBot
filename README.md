@@ -107,8 +107,7 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 | Command | Description |
 |---|---|
 | `/roast @user` | AI-roast someone using memory + multi-model scoring |
-| `/roastmode fast\|deep\|adjustable` | Set your roast style |
-| `/stoproast` | Exit roast mode |
+| `/roastmode fast\|deep\|adjustable\|off` | Set roast style — `off` exits roast mode |
 | `/autor on\|off` | Auto-roast anyone who mentions the bot in this channel |
 | `/data [@user]` | View stored memory profile |
 
@@ -150,8 +149,8 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 | Command | Description |
 |---|---|
 | `/stocks` | View market prices and your portfolio |
-| `/stocks_buy SYMBOL amount` | Buy shares |
-| `/stocks_sell SYMBOL amount` | Sell shares |
+| `/stocks buy SYMBOL amount` | Buy shares |
+| `/stocks sell SYMBOL amount` | Sell shares |
 
 </details>
 
@@ -175,8 +174,8 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 | `/dungeon` | Enter the dungeon RPG |
 | `/voidmaze` | Enter the void maze roguelite |
 | `/arena` | Enter the auto-battler arena |
-| `/arena_buy item` | Buy an arena upgrade |
-| `/arena_setteam names…` | Set your arena team |
+| `/arena buy might\|haste\|ward\|luck` | Buy an arena upgrade with crowns |
+| `/arena setteam name1, name2, …` | Set your arena team (up to 5) |
 | `/lab` | Enter the research lab |
 
 </details>
@@ -186,17 +185,17 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/hack` | Run a 4-phase hacking sim using your code files |
-| `/hack_profile [@user]` | View hack stats |
-| `/hack_targets` | List available targets |
-| `/hack_chaos` | Trigger global chaos event |
-| `/hack_chaos_state` | View current chaos level |
-| `/code_new name lang code` | Save a code snippet |
-| `/code_edit name code` | Edit a snippet |
-| `/code_view name` | View a snippet |
-| `/code_list` | List your snippets |
-| `/code_delete name` | Delete a snippet |
-| `/code_run name` | Run a snippet |
+| `/hack <target>` | Run a 4-phase hacking sim |
+| `/hack profile [@user]` | View hack stats |
+| `/hack targets` | List available targets |
+| `/hack chaos <target>` | Trigger chaos hack (max difficulty) |
+| `/hack state` | View current chaos resonance |
+| `/code new <file>` | Create a code file |
+| `/code edit <file>` | Edit a file via modal |
+| `/code view <file>` | View a file |
+| `/code list` | List your files |
+| `/code delete <file>` | Delete a file |
+| `/code run <file>` | Run a file |
 
 </details>
 
@@ -206,13 +205,13 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 | Command | Description |
 |---|---|
 | `/battleship [@user \| ai diff]` | Start a game |
-| `/bs_place A0 r\|d` | Place your next ship |
-| `/bs_fire B5` | Fire at a coordinate |
-| `/bs_status` | View your boards |
-| `/bs_forfeit` | Forfeit |
-| `/bs_resume` | Resume a saved game |
-| `/bs_stats [@user]` | Win/loss/ELO stats |
-| `/bs_leaderboard` | ELO leaderboard |
+| `/bs place A0 r\|d` | Place your next ship |
+| `/bs fire B5` | Fire at a coordinate |
+| `/bs status` | View your boards |
+| `/bs forfeit` | Forfeit |
+| `/bs resume` | Resume a saved game |
+| `/bs stats [@user]` | Win/loss/ELO stats |
+| `/bs leaderboard` | ELO leaderboard |
 
 </details>
 
@@ -221,9 +220,9 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/monopoly_start [@opponent]` | Start a game (vs player or AI) |
-| `/monopoly_stop` | End the current game |
-| `/monopoly_resume` | Resume a saved game |
+| `/monopoly start [@opponent]` | Start a game (vs player or AI) |
+| `/monopoly stop` | End the current game |
+| `/monopoly resume` | Resume a saved game |
 
 </details>
 
@@ -232,31 +231,31 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/guild_create name` | Create a guild |
-| `/guild_join id` | Join a guild |
-| `/guild_leave` | Leave your guild |
-| `/guild_info [id]` | View guild info |
-| `/guild_deposit amount` | Deposit to guild bank |
-| `/guild_upgrade` | Upgrade guild level |
-| `/auction_sell item amount price` | List an item |
-| `/auction_browse` | Browse listings |
-| `/auction_buy id` | Buy a listing |
-| `/auction_cancel id` | Cancel your listing |
+| `/guild create name` | Create a guild |
+| `/guild join id` | Join a guild |
+| `/guild leave` | Leave your guild |
+| `/guild info [id]` | View guild info |
+| `/guild deposit amount` | Deposit to guild bank |
+| `/guild upgrade` | Upgrade guild level |
+| `/auction sell item amount price` | List an item |
+| `/auction browse` | Browse listings |
+| `/auction buy id` | Buy a listing |
+| `/auction cancel id` | Cancel your listing |
 
 </details>
 
 <details>
-<summary><b>🗺️ Quests, Achievements & Profile</b></summary>
+<summary><b>🗺️ Quests, Profile & Titles</b></summary>
 
 | Command | Description |
 |---|---|
 | `/quests [@user]` | View daily quest board |
-| `/quests_claim slot` | Claim a completed quest |
-| `/achievements [@user]` | View achievement progress |
+| `/quests claim slot` | Claim a completed quest |
 | `/profile [@user]` | View full profile |
-| `/collections [@user]` | View collector stats |
+| `/profile achievements [@user]` | View achievement progress |
+| `/profile collections [@user]` | View collector stats |
 | `/titles [@user]` | View unlocked titles |
-| `/title_equip title` | Equip a title |
+| `/titles equip title` | Equip a title |
 | `/badge [@user]` | View badges |
 
 </details>
@@ -266,9 +265,9 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/lichess username` | View lichess profile |
-| `/lichess_game game_id` | View a game |
-| `/lichess_stream username` | Stream live games |
+| `/lichess` | View lichess status |
+| `/lichess game` | View the last game |
+| `/lichess stream` | Live-stream updates |
 
 </details>
 
@@ -278,12 +277,13 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 | Command | Description |
 |---|---|
 | `/automod` | View current settings |
-| `/automod_reset` | Reset config |
-| `/automod_punishment warn\|mute\|kick` | Set punishment |
-| `/automod_slurs on\|off` | Toggle slur filter |
-| `/automod_spam on\|off` | Toggle spam detection |
-| `/automod_filters` | View active filters |
-| `/automod_settings` | Full settings view |
+| `/automod on\|off` | Enable or disable automod |
+| `/automod reset @user` | Reset a user's offence count |
+| `/automod punishment level action` | Set punishment for a level |
+| `/automod slurs list\|add\|remove` | Manage slur filter |
+| `/automod spam setting value` | Configure spam thresholds |
+| `/automod filters name on\|off` | Toggle a filter |
+| `/automod settings key value` | Adjust misc settings |
 
 </details>
 
@@ -296,13 +296,12 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 | `/animal` | Random animal fact |
 | `/emojimixup` | Mix up emoji meanings |
 | `/rave` | Start a rave |
+| `/rave bg <key>` | Set rave background video |
 | `/img prompt` | Generate an image |
 | `/afk [message]` | Set AFK status |
 | `/recommend` | Get a personalised activity suggestion |
-| `/whatsnext` | See what to do next |
-| `/help [topic]` | Help guide |
-| `/start` | Beginner guide |
-| `/setup_view` | Workspace setup |
+| `/help [topic\|start]` | Help guide — use `start` for the beginner guide |
+| `/setup view\|channel\|tips\|post\|reset` | Workspace setup |
 
 </details>
 

@@ -310,33 +310,4 @@ def format_next_up(items):
 
 
 async def setup(app):
-
-    @app.command("/achievements")
-    async def achievements_cmd(ack, command, client):
-        await ack()
-        import re as re_mod
-        uid = command["user_id"]; channel = command["channel_id"]
-        text = (command.get("text") or "").strip(); target_id = uid; mention = f"<@{uid}>"
-        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
-        if m: target_id = m.group(1); mention = f"<@{target_id}>"
-        meta = get_profile_meta(target_id)
-        snapshot = meta["snapshot"]; summary = meta["summary"]; results = meta["results"]; grades = meta["grades"]
-        wealth_text = f"#{snapshot['wealth_rank']}/{snapshot['ranked_users']}" if snapshot["wealth_rank"] else "Unranked"
-        tier_sections = []
-        for tier in reversed(TIER_ORDER):
-            unlocked = [a for a in results if a["unlocked"] and a["tier"] == tier]
-            if unlocked:
-                tier_sections.append(f"{TIER_EMOJIS[tier]} *{TIER_LABELS[tier]}*: " + " ".join(f"{a['emoji']}{a['name']}" for a in unlocked))
-        in_progress = sorted([a for a in results if not a["unlocked"]], key=lambda a: -a["percent"])[:5]
-        progress_lines = "\n".join(f"• {a['emoji']} *{a['name']}* {a['percent']}% — {a['progress_text']}" for a in in_progress)
-        text_out = (
-            f":trophy: *{mention}'s Achievements*\n"
-            f"Title: `{meta['title']}`\n"
-            f"Unlocked: `{summary['unlocked_count']}/{summary['total_count']}` ({summary['completion']}%) | Points: `{summary['total_points']}`\n"
-            f"Net Worth: `{snapshot['net_worth']:,}` | Rank: `{wealth_text}` | Active Modes: `{snapshot['active_modes']}`\n\n"
-            f"*Masteries:*\n{format_mastery_block(grades)}\n\n"
-            f"*Unlocks:*\n{chr(10).join(tier_sections) if tier_sections else 'None yet'}\n\n"
-            f"*Next Up:*\n{progress_lines or 'All unlocked!'}\n\n"
-            f"*Rare Unlocks:*\n{format_rare_unlocks(meta['rare_unlocked'])}"
-        )
-        await client.chat_postMessage(channel=channel, text=text_out[:3000])
+    pass

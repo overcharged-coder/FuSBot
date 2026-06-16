@@ -105,30 +105,25 @@ _game_pages: dict[str, tuple[dict, list[str], int]] = {}
 async def setup(app):
 
     @app.command("/lichess")
-    async def lichess(ack, command, respond):
-        await ack()
-        try:
-            data = await fetch_status()
-        except Exception as e:
-            return await respond(text=f":x: Failed to fetch: `{e}`", response_type="ephemeral")
-        await respond(text=make_status_text(data))
-
-    @app.command("/lichess_game")
-    async def lichess_game(ack, command, client, respond):
+    async def lichess_cmd(ack, command, client, respond):
         await ack()
         uid = command["user_id"]
-        try:
-            data = await fetch_status()
-        except Exception as e:
-            return await respond(text=f":x: Failed to fetch: `{e}`", response_type="ephemeral")
-        game = data.get("last_game")
-        if not game:
-            return await respond(text=":warning: No last game found.", response_type="ephemeral")
-        moves = game.get("moves", "")
-        pages = paginate_moves(moves)
-        _game_pages[uid] = (game, pages, 0)
-        blocks = _game_blocks(game, pages, 0, uid)
-        await respond(blocks=blocks, text="Last Game")
+        parts = (command.get("text") or "").strip().split(None, 1)
+        sub = parts[0].lower() if parts else ""
+
+        if sub == "game":
+            try:
+                data = await fetch_status()
+            except Exception as e:
+                return await respond(text=f":x: Failed to fetch: `{e}`", response_type="ephemeral")
+            game = data.get("last_game")
+            if not game:
+                return await respond(text=":warning: No last game found.", response_type="ephemeral")
+            moves = game.get("moves", "")
+            pages = paginate_moves(moves)
+            _game_pages[uid] = (game, pages, 0)
+            blocks = _game_blocks(game, pages, 0, uid)
+            await respond(blocks=blocks, text="Last Game")
 
     def _game_blocks(game, pages, page_idx, uid):
         opponent = game.get("opponent", "Unknown")
@@ -183,46 +178,50 @@ async def setup(app):
         blocks = _game_blocks(game, pages, idx, uid)
         await client.chat_update(channel=channel, ts=ts, blocks=blocks, text="Last Game")
 
-    @app.command("/lichess_stream")
-    async def lichess_stream(ack, command, client):
-        await ack()
-        uid = command["user_id"]
-        channel = command["channel_id"]
-        try:
-            data = await fetch_status()
-        except Exception as e:
-            await client.chat_postEphemeral(channel=channel, user=uid, text=f":x: `{e}`")
-            return
-        result = await client.chat_postMessage(channel=channel, text=make_status_text(data), blocks=[
-            {"type": "section", "text": {"type": "mrkdwn", "text": make_status_text(data)}},
-            {"type": "actions", "elements": [
-                {"type": "button", "text": {"type": "plain_text", "text": "Stop"}, "action_id": "lichess_stop", "style": "danger", "value": uid},
-            ]},
-        ])
-        ts = result["ts"]
-        _stream_sessions[uid] = True
+        elif sub == "stream":
+            channel = command["channel_id"]
+            try:
+                data = await fetch_status()
+            except Exception as e:
+                await client.chat_postEphemeral(channel=channel, user=uid, text=f":x: `{e}`")
+                return
+            result = await client.chat_postMessage(channel=channel, text=make_status_text(data), blocks=[
+                {"type": "section", "text": {"type": "mrkdwn", "text": make_status_text(data)}},
+                {"type": "actions", "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "Stop"}, "action_id": "lichess_stop", "style": "danger", "value": uid},
+                ]},
+            ])
+            ts = result["ts"]
+            _stream_sessions[uid] = True
 
-        async def _stream():
-            for _ in range(120):
-                await asyncio.sleep(10)
-                if not _stream_sessions.get(uid, False):
-                    break
-                try:
-                    d = await fetch_status()
-                except Exception:
-                    continue
-                try:
-                    await client.chat_update(channel=channel, ts=ts, text=make_status_text(d), blocks=[
-                        {"type": "section", "text": {"type": "mrkdwn", "text": make_status_text(d)}},
-                        {"type": "actions", "elements": [
-                            {"type": "button", "text": {"type": "plain_text", "text": "Stop"}, "action_id": "lichess_stop", "style": "danger", "value": uid},
-                        ]},
-                    ])
-                except Exception:
-                    break
-            _stream_sessions.pop(uid, None)
+            async def _stream():
+                for _ in range(120):
+                    await asyncio.sleep(10)
+                    if not _stream_sessions.get(uid, False):
+                        break
+                    try:
+                        d = await fetch_status()
+                    except Exception:
+                        continue
+                    try:
+                        await client.chat_update(channel=channel, ts=ts, text=make_status_text(d), blocks=[
+                            {"type": "section", "text": {"type": "mrkdwn", "text": make_status_text(d)}},
+                            {"type": "actions", "elements": [
+                                {"type": "button", "text": {"type": "plain_text", "text": "Stop"}, "action_id": "lichess_stop", "style": "danger", "value": uid},
+                            ]},
+                        ])
+                    except Exception:
+                        break
+                _stream_sessions.pop(uid, None)
 
-        asyncio.ensure_future(_stream())
+            asyncio.ensure_future(_stream())
+
+        else:
+            try:
+                data = await fetch_status()
+            except Exception as e:
+                return await respond(text=f":x: Failed to fetch: `{e}`", response_type="ephemeral")
+            await respond(text=make_status_text(data))
 
     @app.action("lichess_stop")
     async def lichess_stop(ack, body, client):

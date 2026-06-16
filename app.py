@@ -848,26 +848,21 @@ async def roastmode_cmd(ack, respond, command):
     await ack()
     mode_choice = command.get("text", "").strip().lower()
     user_id = command["user_id"]
-    if mode_choice not in ("fast", "deep", "adjustable"):
-        await respond("Usage: `/roastmode fast|deep|adjustable`")
-        return
-    roast_mode[user_id] = mode_choice
-    roast_history[user_id] = []
-    save_roast_memory()
-    await respond(f"🔥 Roast Mode: *{mode_choice.upper()}*. Use `/stoproast` to stop.")
-
-
-@app.command("/stoproast")
-async def stoproast_cmd(ack, respond, command):
-    await ack()
-    uid = command["user_id"]
-    if uid in roast_mode:
-        del roast_mode[uid]
-        roast_history.pop(uid, None)
+    if mode_choice == "off":
+        if user_id in roast_mode:
+            del roast_mode[user_id]
+            roast_history.pop(user_id, None)
+            save_roast_memory()
+            await respond("🏳️ Roast Mode Turned Off.")
+        else:
+            await respond("You were not in roast mode.")
+    elif mode_choice in ("fast", "deep", "adjustable"):
+        roast_mode[user_id] = mode_choice
+        roast_history[user_id] = []
         save_roast_memory()
-        await respond("🏳️ Roast Mode Turned Off.")
+        await respond(f"🔥 Roast Mode: *{mode_choice.upper()}*. Use `/roastmode off` to stop.")
     else:
-        await respond("You were not in roast mode.")
+        await respond("Usage: `/roastmode fast|deep|adjustable|off`")
 
 
 # ── Message event ─────────────────────────────────────────────────────────────

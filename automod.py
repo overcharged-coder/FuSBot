@@ -225,131 +225,129 @@ async def setup(app):
                 pass
 
     @app.command("/automod")
-    async def automod_toggle(ack, command, respond):
-        await ack()
-        workspace_id = command.get("team_id") or "default"
-        mode = (command.get("text") or "").strip().lower()
-        cfg = ENGINE.get_cfg(workspace_id)
-        cfg["enabled"] = mode == "on"
-        save_automod()
-        await respond(text=f"automod {'enabled' if cfg['enabled'] else 'disabled'}")
-
-    @app.command("/automod_reset")
-    async def automod_reset(ack, command, respond):
+    async def automod_cmd(ack, command, respond):
         await ack()
         import re as re_mod
         workspace_id = command.get("team_id") or "default"
-        text = (command.get("text") or "").strip()
-        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
-        if not m:
-            return await respond(text="Usage: `/automod_reset @user`", response_type="ephemeral")
-        uid = m.group(1)
-        if uid in ENGINE.offences.get(workspace_id, {}):
-            ENGINE.offences[workspace_id][uid] = 0
-            save_offences({ws: dict(users) for ws, users in ENGINE.offences.items()})
-            await respond(text=f":arrows_counterclockwise: Reset offences for <@{uid}>.")
+        args = (command.get("text") or "").split(None, 1)
+        action = args[0].lower() if args else ""
+        rest = args[1].strip() if len(args) > 1 else ""
+
+        if action == "on":
+            cfg = ENGINE.get_cfg(workspace_id); cfg["enabled"] = True; save_automod()
+            await respond(text="automod enabled")
+
+        elif action == "off":
+            cfg = ENGINE.get_cfg(workspace_id); cfg["enabled"] = False; save_automod()
+            await respond(text="automod disabled")
+
+        elif action == "reset":
+            m = re_mod.search(r"<@([A-Z0-9]+)>", rest)
+            if not m:
+                return await respond(text="Usage: `/automod reset @user`", response_type="ephemeral")
+            uid = m.group(1)
+            if uid in ENGINE.offences.get(workspace_id, {}):
+                ENGINE.offences[workspace_id][uid] = 0
+                save_offences({ws: dict(users) for ws, users in ENGINE.offences.items()})
+                await respond(text=f":arrows_counterclockwise: Reset offences for <@{uid}>.")
+            else:
+                await respond(text=f"<@{uid}> has no recorded offences.")
+
+        elif action == "punishment":
+            sub = rest.split()
+            if len(sub) < 2:
+                return await respond(text="Usage: `/automod punishment <level> <warn|kick|ban|timeout:minutes>`", response_type="ephemeral")
+            try:
+                level = int(sub[0])
+            except Exception:
+                return await respond(text="Level must be a number.", response_type="ephemeral")
+            act = sub[1].lower().strip()
+            valid = act in {"warn", "kick", "ban"} or (act.startswith("timeout:") and act.split(":", 1)[1].isdigit())
+            if not valid:
+                return await respond(text="Invalid action.", response_type="ephemeral")
+            cfg = ENGINE.get_cfg(workspace_id); cfg["punishments"][str(level)] = act; save_automod()
+            await respond(text=f":white_check_mark: Level {level} → `{act}`")
+
+        elif action == "slurs":
+            sub = rest.split(None, 1)
+            sub_action = sub[0].lower() if sub else "list"
+            word = sub[1].strip() if len(sub) > 1 else None
+            cfg = ENGINE.get_cfg(workspace_id)
+            if sub_action == "list":
+                slurs = cfg["slurs"]
+                if not slurs:
+                    return await respond(text="No slurs set.")
+                return await respond(text="*Automod slurs:* " + ", ".join(censor_word(s) for s in slurs))
+            if sub_action == "add":
+                if not word:
+                    return await respond(text="Provide a word.", response_type="ephemeral")
+                w = word.lower().strip()
+                if w in cfg["slurs"]:
+                    return await respond(text="Already exists.", response_type="ephemeral")
+                cfg["slurs"].append(w); save_automod()
+                return await respond(text=f"Added `{censor_word(w)}`.")
+            if sub_action == "remove":
+                if not word:
+                    return await respond(text="Provide a word.", response_type="ephemeral")
+                w = word.lower().strip()
+                if w not in cfg["slurs"]:
+                    return await respond(text="Not found.", response_type="ephemeral")
+                cfg["slurs"].remove(w); save_automod()
+                return await respond(text=f"Removed `{censor_word(w)}`.")
+            await respond(text="Slur actions: list, add <word>, remove <word>", response_type="ephemeral")
+
+        elif action == "spam":
+            sub = rest.split(None, 1)
+            if len(sub) < 2:
+                return await respond(text="Usage: `/automod spam <setting> <value>`", response_type="ephemeral")
+            setting, value = sub
+            cfg = ENGINE.get_cfg(workspace_id); spam = cfg["spam"]
+            if setting not in spam:
+                return await respond(text=f"Valid settings: {', '.join(spam.keys())}", response_type="ephemeral")
+            try:
+                spam[setting] = float(value) if isinstance(spam[setting], float) else int(value)
+            except Exception:
+                return await respond(text="Invalid value.", response_type="ephemeral")
+            save_automod()
+            await respond(text=f":white_check_mark: `{setting}` = `{spam[setting]}`")
+
+        elif action == "filters":
+            sub = rest.split(None, 1)
+            if len(sub) < 2:
+                return await respond(text="Usage: `/automod filters <block_invites|block_links> <on|off>`", response_type="ephemeral")
+            filter_name, mode = sub
+            cfg = ENGINE.get_cfg(workspace_id)
+            if filter_name not in cfg["filters"]:
+                return await respond(text=f"Valid filters: {', '.join(cfg['filters'].keys())}", response_type="ephemeral")
+            cfg["filters"][filter_name] = mode.lower() == "on"; save_automod()
+            await respond(text=f":white_check_mark: `{filter_name}` {'enabled' if cfg['filters'][filter_name] else 'disabled'}")
+
+        elif action == "settings":
+            sub = rest.split(None, 1)
+            if len(sub) < 2:
+                return await respond(text="Usage: `/automod settings <delete|cooldown_seconds> <value>`", response_type="ephemeral")
+            setting, value = sub
+            cfg = ENGINE.get_cfg(workspace_id)
+            if setting not in {"delete", "cooldown_seconds"}:
+                return await respond(text="Invalid setting.", response_type="ephemeral")
+            try:
+                cfg[setting] = value.lower() == "on" if setting == "delete" else int(value)
+            except Exception:
+                return await respond(text="Invalid value.", response_type="ephemeral")
+            save_automod()
+            await respond(text=f":white_check_mark: `{setting}` = `{cfg[setting]}`")
+
         else:
-            await respond(text=f"<@{uid}> has no recorded offences.")
-
-    @app.command("/automod_punishment")
-    async def automod_punishment(ack, command, respond):
-        await ack()
-        workspace_id = command.get("team_id") or "default"
-        args = (command.get("text") or "").split()
-        if len(args) < 2:
-            return await respond(text="Usage: `/automod_punishment <level> <warn|kick|ban|timeout:minutes>`", response_type="ephemeral")
-        try:
-            level = int(args[0])
-        except Exception:
-            return await respond(text="Level must be a number.", response_type="ephemeral")
-        action = args[1].lower().strip()
-        valid = action in {"warn", "kick", "ban"} or (action.startswith("timeout:") and action.split(":", 1)[1].isdigit())
-        if not valid:
-            return await respond(text="Invalid action.", response_type="ephemeral")
-        cfg = ENGINE.get_cfg(workspace_id)
-        cfg["punishments"][str(level)] = action
-        save_automod()
-        await respond(text=f":white_check_mark: Level {level} → `{action}`")
-
-    @app.command("/automod_slurs")
-    async def automod_slurs(ack, command, respond):
-        await ack()
-        workspace_id = command.get("team_id") or "default"
-        args = (command.get("text") or "").split(None, 1)
-        action = args[0].lower() if args else "list"
-        word = args[1].strip() if len(args) > 1 else None
-        cfg = ENGINE.get_cfg(workspace_id)
-        if action == "list":
-            slurs = cfg["slurs"]
-            if not slurs:
-                return await respond(text="No slurs set.")
-            return await respond(text="*Automod slurs:* " + ", ".join(censor_word(s) for s in slurs))
-        if action == "add":
-            if not word:
-                return await respond(text="Provide a word.", response_type="ephemeral")
-            w = word.lower().strip()
-            if w in cfg["slurs"]:
-                return await respond(text="Already exists.", response_type="ephemeral")
-            cfg["slurs"].append(w); save_automod()
-            return await respond(text=f"Added `{censor_word(w)}`.")
-        if action == "remove":
-            if not word:
-                return await respond(text="Provide a word.", response_type="ephemeral")
-            w = word.lower().strip()
-            if w not in cfg["slurs"]:
-                return await respond(text="Not found.", response_type="ephemeral")
-            cfg["slurs"].remove(w); save_automod()
-            return await respond(text=f"Removed `{censor_word(w)}`.")
-        await respond(text="Actions: list, add, remove", response_type="ephemeral")
-
-    @app.command("/automod_spam")
-    async def automod_spam(ack, command, respond):
-        await ack()
-        workspace_id = command.get("team_id") or "default"
-        args = (command.get("text") or "").split(None, 1)
-        if len(args) < 2:
-            return await respond(text="Usage: `/automod_spam <setting> <value>`", response_type="ephemeral")
-        setting, value = args
-        cfg = ENGINE.get_cfg(workspace_id)
-        spam = cfg["spam"]
-        if setting not in spam:
-            return await respond(text=f"Valid settings: {', '.join(spam.keys())}", response_type="ephemeral")
-        try:
-            spam[setting] = float(value) if isinstance(spam[setting], float) else int(value)
-        except Exception:
-            return await respond(text="Invalid value.", response_type="ephemeral")
-        save_automod()
-        await respond(text=f":white_check_mark: `{setting}` = `{spam[setting]}`")
-
-    @app.command("/automod_filters")
-    async def automod_filters(ack, command, respond):
-        await ack()
-        workspace_id = command.get("team_id") or "default"
-        args = (command.get("text") or "").split(None, 1)
-        if len(args) < 2:
-            return await respond(text="Usage: `/automod_filters <block_invites|block_links> <on|off>`", response_type="ephemeral")
-        filter_name, mode = args
-        cfg = ENGINE.get_cfg(workspace_id)
-        if filter_name not in cfg["filters"]:
-            return await respond(text=f"Valid filters: {', '.join(cfg['filters'].keys())}", response_type="ephemeral")
-        cfg["filters"][filter_name] = mode.lower() == "on"
-        save_automod()
-        await respond(text=f":white_check_mark: `{filter_name}` {'enabled' if cfg['filters'][filter_name] else 'disabled'}")
-
-    @app.command("/automod_settings")
-    async def automod_settings(ack, command, respond):
-        await ack()
-        workspace_id = command.get("team_id") or "default"
-        args = (command.get("text") or "").split(None, 1)
-        if len(args) < 2:
-            return await respond(text="Usage: `/automod_settings <delete|cooldown_seconds> <value>`", response_type="ephemeral")
-        setting, value = args
-        cfg = ENGINE.get_cfg(workspace_id)
-        if setting not in {"delete", "cooldown_seconds"}:
-            return await respond(text="Invalid setting.", response_type="ephemeral")
-        try:
-            cfg[setting] = value.lower() == "on" if setting == "delete" else int(value)
-        except Exception:
-            return await respond(text="Invalid value.", response_type="ephemeral")
-        save_automod()
-        await respond(text=f":white_check_mark: `{setting}` = `{cfg[setting]}`")
+            cfg = ENGINE.get_cfg(workspace_id)
+            filters = cfg.get("filters", {})
+            punishments = cfg.get("punishments", {})
+            p_lines = "\n".join(f"  lvl {k}: `{v}`" for k, v in sorted(punishments.items())) or "  none"
+            f_lines = "\n".join(f"  {k}: `{'on' if v else 'off'}`" for k, v in filters.items()) or "  none"
+            msg = (
+                f":shield: *AutoMod Settings*\n"
+                f"enabled: `{'yes' if cfg.get('enabled') else 'no'}`\n"
+                f"punishments:\n{p_lines}\n"
+                f"filters:\n{f_lines}\n\n"
+                f"subcommands: `on` `off` `reset @user` `punishment <lvl> <action>` `slurs list|add|remove` `spam <k> <v>` `filters <k> on|off` `settings <k> <v>`"
+            )
+            await respond(text=msg)

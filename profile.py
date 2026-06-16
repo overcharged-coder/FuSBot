@@ -188,13 +188,92 @@ async def setup(app):
         import re as re_mod
         uid = command["user_id"]
         text = (command.get("text") or "").strip()
-        target_id = uid
-        display_name = f"<@{uid}>"
-        if text:
+        parts = text.split(None, 1)
+        sub = parts[0].lower() if parts else ""
+        rest = parts[1].strip() if len(parts) > 1 else ""
+
+        if sub == "achievements":
+            try:
+                from achievement import get_profile_meta, TIER_ORDER, TIER_EMOJIS, TIER_LABELS, format_mastery_block, format_rare_unlocks, format_next_up
+            except Exception:
+                await respond(text="Achievement module not available."); return
+            channel = command["channel_id"]
+            target_id = uid; mention = f"<@{uid}>"
+            m = re_mod.search(r"<@([A-Z0-9]+)>", rest)
+            if m: target_id = m.group(1); mention = f"<@{target_id}>"
+            meta = get_profile_meta(target_id)
+            snapshot = meta["snapshot"]; summary = meta["summary"]; results = meta["results"]; grades = meta["grades"]
+            wealth_text = f"#{snapshot['wealth_rank']}/{snapshot['ranked_users']}" if snapshot["wealth_rank"] else "Unranked"
+            tier_sections = []
+            for tier in reversed(TIER_ORDER):
+                unlocked = [a for a in results if a["unlocked"] and a["tier"] == tier]
+                if unlocked:
+                    tier_sections.append(f"{TIER_EMOJIS[tier]} *{TIER_LABELS[tier]}*: " + " ".join(f"{a['emoji']}{a['name']}" for a in unlocked))
+            in_progress = sorted([a for a in results if not a["unlocked"]], key=lambda a: -a["percent"])[:5]
+            progress_lines = "\n".join(f"• {a['emoji']} *{a['name']}* {a['percent']}% — {a['progress_text']}" for a in in_progress)
+            text_out = (
+                f":trophy: *{mention}'s Achievements*\n"
+                f"Title: `{meta['title']}`\n"
+                f"Unlocked: `{summary['unlocked_count']}/{summary['total_count']}` ({summary['completion']}%) | Points: `{summary['total_points']}`\n"
+                f"Net Worth: `{snapshot['net_worth']:,}` | Rank: `{wealth_text}` | Active Modes: `{snapshot['active_modes']}`\n\n"
+                f"*Masteries:*\n{format_mastery_block(grades)}\n\n"
+                f"*Unlocks:*\n{chr(10).join(tier_sections) if tier_sections else 'None yet'}\n\n"
+                f"*Next Up:*\n{progress_lines or 'All unlocked!'}\n\n"
+                f"*Rare Unlocks:*\n{format_rare_unlocks(meta['rare_unlocked'])}"
+            )
+            await client.chat_postMessage(channel=channel, text=text_out[:3000])
+
+        elif sub == "collections":
+            try:
+                from collection import rarity_counts, compact_dict_lines, build_snapshot as coll_snapshot
+            except Exception:
+                coll_snapshot = None; rarity_counts = lambda x: {}; compact_dict_lines = lambda d: "n/a"
+            channel = command["channel_id"]
+            target_id = uid; mention = f"<@{uid}>"
+            m = re_mod.search(r"<@([A-Z0-9]+)>", rest)
+            if m: target_id = m.group(1); mention = f"<@{target_id}>"
+            data = get_user(target_id)
+            snapshot = coll_snapshot(target_id, data) if coll_snapshot else None
+            inventory = data.get("inventory", {}) if isinstance(data.get("inventory", {}), dict) else {}
+            owned_animals = data.get("owned_animals", []) if isinstance(data.get("owned_animals", []), list) else []
+            team = data.get("team", []) if isinstance(data.get("team", []), list) else []
+            dungeon = data.get("dungeon", {}) if isinstance(data.get("dungeon", {}), dict) else {}
+            voidmaze = data.get("voidmaze", {}) if isinstance(data.get("voidmaze", {}), dict) else {}
+            lab = data.get("lab", {}) if isinstance(data.get("lab", {}), dict) else {}
+            stocks = data.get("stocks", {}) if isinstance(data.get("stocks", {}), dict) else {}
+            inv_unique = sum(1 for qty in inventory.values() if int(qty or 0) > 0)
+            inv_total = sum(max(0, int(qty or 0)) for qty in inventory.values())
+            animal_counts = rarity_counts(owned_animals)
+            team_power = sum(int(a.get("strength", 0) or 0) for a in team if isinstance(a, dict))
+            relics = dungeon.get("relics", []) if isinstance(dungeon.get("relics", []), list) else []
+            curses = dungeon.get("curses", []) if isinstance(dungeon.get("curses", []), list) else []
+            artifacts = voidmaze.get("artifacts", []) if isinstance(voidmaze.get("artifacts", []), list) else []
+            breakthroughs = lab.get("breakthroughs", []) if isinstance(lab.get("breakthroughs", []), list) else []
+            stock_symbols = sum(1 for _, amount in stocks.items() if int(amount or 0) > 0)
+            inv_items_text = compact_dict_lines({k: int(v or 0) for k, v in inventory.items() if int(v or 0) > 0})
+            rarities_text = compact_dict_lines(animal_counts)
+            grade_section = ""
+            if snapshot:
+                grade_section = (
+                    f"\n*Collector Grade*\n"
+                    f"inventory score base: `{snapshot['inventory_unique']}`\n"
+                    f"animal count: `{snapshot['owned_animals_count']}`\n"
+                    f"legendary+ animals: `{snapshot['legendary_plus_animals']}`\n"
+                    f"strongest member: `{snapshot['strongest_team_member_name']}`"
+                )
+            msg = (
+                f":books: *{mention}'s Collections*\n\n"
+                f"*Inventory*\ntotal: `{inv_total}` | unique: `{inv_unique}`\ntop items:\n{inv_items_text}\n\n"
+                f"*Animals*\nowned: `{len(owned_animals)}` | team: `{len(team)}` | power: `{team_power}`\nrarities:\n{rarities_text}\n\n"
+                f"*Special Finds*\nrelics: `{len(relics)}` | curses: `{len(curses)}` | void artifacts: `{len(artifacts)}` | lab breakthroughs: `{len(breakthroughs)}` | stocks: `{stock_symbols}`"
+                f"{grade_section}"
+            )
+            await client.chat_postMessage(channel=channel, text=msg[:3000])
+
+        else:
+            target_id = uid; display_name = f"<@{uid}>"
             m = re_mod.search(r"<@([A-Z0-9]+)>", text)
-            if m:
-                target_id = m.group(1)
-                display_name = f"<@{target_id}>"
-        data = get_user(target_id)
-        profile_text = _build_profile_text(target_id, data, display_name)
-        await respond(text=profile_text)
+            if m: target_id = m.group(1); display_name = f"<@{target_id}>"
+            data = get_user(target_id)
+            profile_text = _build_profile_text(target_id, data, display_name)
+            await respond(text=profile_text)

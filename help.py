@@ -147,17 +147,15 @@ async def setup(app):
     @app.command("/help")
     async def help_cmd(ack, command, respond):
         await ack()
-        topic = (command.get("text") or "").strip() or None
         uid = command["user_id"]
-        blocks = make_blocks(topic, uid)
-        await respond(blocks=blocks, text="Help")
-
-    @app.command("/start")
-    async def start_cmd(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        blocks = make_start_blocks("home", uid)
-        await respond(blocks=blocks, text="Start here")
+        text = (command.get("text") or "").strip()
+        if text.lower() == "start":
+            blocks = make_start_blocks("home", uid)
+            await respond(blocks=blocks, text="Start here")
+        else:
+            topic = text or None
+            blocks = make_blocks(topic, uid)
+            await respond(blocks=blocks, text="Help")
 
     async def _handle_start_route(ack, body, respond):
         await ack()

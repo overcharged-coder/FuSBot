@@ -96,54 +96,105 @@ def _get_pad(uid: str) -> dict:
 
 async def setup(app):
 
-    @app.command("/code_new")
-    async def code_new(ack, command, respond):
+    @app.command("/code")
+    async def code_cmd(ack, command, client, body, respond):
         await ack()
         uid = command["user_id"]
-        filename = (command.get("text") or "").strip()
-        if not filename:
-            return await respond(text="Usage: `/code_new <filename>`", response_type="ephemeral")
-        pad = _get_pad(uid)
-        if filename in pad:
-            return await respond(text=":x: File already exists.", response_type="ephemeral")
-        pad[filename] = ""
-        save_state()
-        await respond(text=f":page_facing_up: Created *{filename}*.")
+        parts = (command.get("text") or "").strip().split(None, 1)
+        action = parts[0].lower() if parts else "list"
+        arg = parts[1].strip() if len(parts) > 1 else ""
 
-    @app.command("/code_edit")
-    async def code_edit(ack, command, client, body, respond):
-        await ack()
-        uid = command["user_id"]
-        filename = (command.get("text") or "").strip()
-        if not filename:
-            return await respond(text="Usage: `/code_edit <filename>`", response_type="ephemeral")
-        pad = _get_pad(uid)
-        if filename not in pad:
-            return await respond(text=":x: File does not exist.", response_type="ephemeral")
-        current = pad[filename] or ""
-        await client.views_open(
-            trigger_id=body["trigger_id"],
-            view={
-                "type": "modal",
-                "callback_id": "code_edit_modal",
-                "title": {"type": "plain_text", "text": "Edit Code"},
-                "submit": {"type": "plain_text", "text": "Save"},
-                "private_metadata": uid + "|" + filename,
-                "blocks": [
-                    {
-                        "type": "input",
-                        "block_id": "code_block",
-                        "label": {"type": "plain_text", "text": filename},
-                        "element": {
-                            "type": "plain_text_input",
-                            "action_id": "code_input",
-                            "multiline": True,
-                            "initial_value": current[:3000],
-                        },
-                    }
-                ],
-            },
-        )
+        if action == "new":
+            filename = arg
+            if not filename:
+                return await respond(text="Usage: `/code new <filename>`", response_type="ephemeral")
+            pad = _get_pad(uid)
+            if filename in pad:
+                return await respond(text=":x: File already exists.", response_type="ephemeral")
+            pad[filename] = ""; save_state()
+            await respond(text=f":page_facing_up: Created *{filename}*.")
+
+        elif action == "edit":
+            filename = arg
+            if not filename:
+                return await respond(text="Usage: `/code edit <filename>`", response_type="ephemeral")
+            pad = _get_pad(uid)
+            if filename not in pad:
+                return await respond(text=":x: File does not exist.", response_type="ephemeral")
+            current = pad[filename] or ""
+            await client.views_open(
+                trigger_id=body["trigger_id"],
+                view={
+                    "type": "modal",
+                    "callback_id": "code_edit_modal",
+                    "title": {"type": "plain_text", "text": "Edit Code"},
+                    "submit": {"type": "plain_text", "text": "Save"},
+                    "private_metadata": uid + "|" + filename,
+                    "blocks": [
+                        {
+                            "type": "input",
+                            "block_id": "code_block",
+                            "label": {"type": "plain_text", "text": filename},
+                            "element": {
+                                "type": "plain_text_input",
+                                "action_id": "code_input",
+                                "multiline": True,
+                                "initial_value": current[:3000],
+                            },
+                        }
+                    ],
+                },
+            )
+
+        elif action == "view":
+            filename = arg
+            if not filename:
+                return await respond(text="Usage: `/code view <filename>`", response_type="ephemeral")
+            pad = _get_pad(uid)
+            if filename not in pad:
+                return await respond(text=":x: File not found.", response_type="ephemeral")
+            code = pad[filename] or "(empty)"
+            if len(code) > 2900:
+                code = code[:2900] + "\n...(truncated)"
+            await respond(text=f"*{filename}*\n```\n{code}\n```")
+
+        elif action in ("list", ""):
+            pad = _get_pad(uid)
+            if not pad:
+                return await respond(text=":open_file_folder: No files.", response_type="ephemeral")
+            await respond(text=":open_file_folder: *Files:*\n" + "\n".join(f"• {fn}" for fn in pad))
+
+        elif action == "delete":
+            filename = arg
+            if not filename:
+                return await respond(text="Usage: `/code delete <filename>`", response_type="ephemeral")
+            pad = _get_pad(uid)
+            if filename not in pad:
+                return await respond(text=":x: File not found.", response_type="ephemeral")
+            del pad[filename]; save_state()
+            await respond(text=f":wastebasket: Deleted *{filename}*.")
+
+        elif action == "run":
+            filename = arg
+            if not filename:
+                return await respond(text="Usage: `/code run <filename>`", response_type="ephemeral")
+            pad = _get_pad(uid)
+            if filename not in pad:
+                return await respond(text=":x: File not found.", response_type="ephemeral")
+            code = pad[filename]
+            if not code.strip():
+                return await respond(text=":x: File is empty.", response_type="ephemeral")
+            ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+            if ext in ("cpp", "cc", "cxx"):
+                output = await run_cpp(code)
+            else:
+                output = sandbox_exec(code)
+            if len(output) > 2900:
+                output = output[:2900] + "\n...<truncated>"
+            await respond(text=f":computer: *Output of {filename}:*\n```\n{output}\n```")
+
+        else:
+            await respond(text="actions: `new <file>` | `edit <file>` | `view <file>` | `list` | `delete <file>` | `run <file>`", response_type="ephemeral")
 
     @app.view("code_edit_modal")
     async def code_edit_modal(ack, body, client):
@@ -154,67 +205,5 @@ async def setup(app):
             return
         uid, filename = parts
         new_code = body["view"]["state"]["values"]["code_block"]["code_input"]["value"] or ""
-        pad = _get_pad(uid)
-        pad[filename] = new_code
-        save_state()
+        pad = _get_pad(uid); pad[filename] = new_code; save_state()
         await client.chat_postMessage(channel=uid, text=f":pencil2: Updated *{filename}*.")
-
-    @app.command("/code_view")
-    async def code_view(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        filename = (command.get("text") or "").strip()
-        if not filename:
-            return await respond(text="Usage: `/code_view <filename>`", response_type="ephemeral")
-        pad = _get_pad(uid)
-        if filename not in pad:
-            return await respond(text=":x: File not found.", response_type="ephemeral")
-        code = pad[filename] or "(empty)"
-        if len(code) > 2900:
-            code = code[:2900] + "\n...(truncated)"
-        await respond(text=f"*{filename}*\n```\n{code}\n```")
-
-    @app.command("/code_list")
-    async def code_list(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        pad = _get_pad(uid)
-        if not pad:
-            return await respond(text=":open_file_folder: No files.", response_type="ephemeral")
-        await respond(text=":open_file_folder: *Files:*\n" + "\n".join(f"• {fn}" for fn in pad))
-
-    @app.command("/code_delete")
-    async def code_delete(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        filename = (command.get("text") or "").strip()
-        if not filename:
-            return await respond(text="Usage: `/code_delete <filename>`", response_type="ephemeral")
-        pad = _get_pad(uid)
-        if filename not in pad:
-            return await respond(text=":x: File not found.", response_type="ephemeral")
-        del pad[filename]
-        save_state()
-        await respond(text=f":wastebasket: Deleted *{filename}*.")
-
-    @app.command("/code_run")
-    async def code_run(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        filename = (command.get("text") or "").strip()
-        if not filename:
-            return await respond(text="Usage: `/code_run <filename>`", response_type="ephemeral")
-        pad = _get_pad(uid)
-        if filename not in pad:
-            return await respond(text=":x: File not found.", response_type="ephemeral")
-        code = pad[filename]
-        if not code.strip():
-            return await respond(text=":x: File is empty.", response_type="ephemeral")
-        ext = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
-        if ext in ("cpp", "cc", "cxx"):
-            output = await run_cpp(code)
-        else:
-            output = sandbox_exec(code)
-        if len(output) > 2900:
-            output = output[:2900] + "\n...<truncated>"
-        await respond(text=f":computer: *Output of {filename}:*\n```\n{output}\n```")

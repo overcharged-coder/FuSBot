@@ -264,14 +264,59 @@ async def setup(app):
     async def stocks_main(ack, command, respond):
         await ack()
         uid = command["user_id"]
-        text = _stocks_text(uid)
-        blocks = [
-            {"type": "section", "text": {"type": "mrkdwn", "text": text}},
-            {"type": "actions", "elements": [
-                {"type": "button", "text": {"type": "plain_text", "text": "Refresh"}, "action_id": "stocks_refresh", "value": uid},
-            ]},
-        ]
-        await respond(blocks=blocks, text="Horsey Stock Exchange")
+        args = (command.get("text") or "").split()
+        action = args[0].lower() if args else ""
+
+        if action == "buy":
+            if len(args) < 3:
+                return await respond(text="Usage: `/stocks buy SYMBOL AMOUNT`", response_type="ephemeral")
+            symbol = args[1].upper()
+            if symbol not in STOCKS:
+                return await respond(text="Unknown stock symbol.", response_type="ephemeral")
+            try:
+                amount = int(args[2])
+            except Exception:
+                return await respond(text="Amount must be a number.", response_type="ephemeral")
+            if amount <= 0:
+                return await respond(text="Amount must be positive.", response_type="ephemeral")
+            price = STOCKS[symbol]["price"]; cost = price * amount
+            user = get_user(uid)
+            if user["balance"] < cost:
+                return await respond(text=f"You need `{cost}` horsenncy but only have `{user['balance']}`.", response_type="ephemeral")
+            user["balance"] -= cost
+            port = user.setdefault("stocks", {}); port[symbol] = port.get(symbol, 0) + amount
+            save_state()
+            await respond(text=f":white_check_mark: Bought *{amount}× {symbol}* @ `{price}` = `{cost}` horsenncy")
+
+        elif action == "sell":
+            if len(args) < 3:
+                return await respond(text="Usage: `/stocks sell SYMBOL AMOUNT`", response_type="ephemeral")
+            symbol = args[1].upper()
+            if symbol not in STOCKS:
+                return await respond(text="Unknown stock.", response_type="ephemeral")
+            try:
+                amount = int(args[2])
+            except Exception:
+                return await respond(text="Amount must be a number.", response_type="ephemeral")
+            user = get_user(uid); port = user.setdefault("stocks", {})
+            if port.get(symbol, 0) < amount:
+                return await respond(text="You don't own that many shares.", response_type="ephemeral")
+            price = STOCKS[symbol]["price"]; earnings = amount * price
+            port[symbol] -= amount
+            if port[symbol] <= 0: del port[symbol]
+            user["balance"] += earnings
+            save_state()
+            await respond(text=f":white_check_mark: Sold *{amount}× {symbol}* @ `{price}` = `{earnings}` horsenncy earned")
+
+        else:
+            text = _stocks_text(uid)
+            blocks = [
+                {"type": "section", "text": {"type": "mrkdwn", "text": text}},
+                {"type": "actions", "elements": [
+                    {"type": "button", "text": {"type": "plain_text", "text": "Refresh"}, "action_id": "stocks_refresh", "value": uid},
+                ]},
+            ]
+            await respond(blocks=blocks, text="Horsey Stock Exchange")
 
     @app.action("stocks_refresh")
     async def stocks_refresh(ack, body, respond):
@@ -285,60 +330,6 @@ async def setup(app):
             ]},
         ]
         await respond(replace_original=True, blocks=blocks, text="Horsey Stock Exchange")
-
-    @app.command("/stocks_buy")
-    async def stocks_buy(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        args = (command.get("text") or "").split()
-        if len(args) < 2:
-            return await respond(text="Usage: `/stocks_buy SYMBOL AMOUNT`", response_type="ephemeral")
-        symbol, *rest = args
-        symbol = symbol.upper()
-        if symbol not in STOCKS:
-            return await respond(text="Unknown stock symbol.", response_type="ephemeral")
-        try:
-            amount = int(rest[0])
-        except Exception:
-            return await respond(text="Amount must be a number.", response_type="ephemeral")
-        if amount <= 0:
-            return await respond(text="Amount must be positive.", response_type="ephemeral")
-        price = STOCKS[symbol]["price"]
-        cost = price * amount
-        user = get_user(uid)
-        if user["balance"] < cost:
-            return await respond(text=f"You need `{cost}` horsenncy but only have `{user['balance']}`.", response_type="ephemeral")
-        user["balance"] -= cost
-        port = user.setdefault("stocks", {})
-        port[symbol] = port.get(symbol, 0) + amount
-        save_state()
-        await respond(text=f":white_check_mark: Bought *{amount}× {symbol}* @ `{price}` = `{cost}` horsenncy")
-
-    @app.command("/stocks_sell")
-    async def stocks_sell(ack, command, respond):
-        await ack()
-        uid = command["user_id"]
-        args = (command.get("text") or "").split()
-        if len(args) < 2:
-            return await respond(text="Usage: `/stocks_sell SYMBOL AMOUNT`", response_type="ephemeral")
-        symbol = args[0].upper()
-        if symbol not in STOCKS:
-            return await respond(text="Unknown stock.", response_type="ephemeral")
-        try:
-            amount = int(args[1])
-        except Exception:
-            return await respond(text="Amount must be a number.", response_type="ephemeral")
-        user = get_user(uid)
-        port = user.setdefault("stocks", {})
-        if port.get(symbol, 0) < amount:
-            return await respond(text="You don't own that many shares.", response_type="ephemeral")
-        price = STOCKS[symbol]["price"]
-        earnings = amount * price
-        port[symbol] -= amount
-        if port[symbol] <= 0: del port[symbol]
-        user["balance"] += earnings
-        save_state()
-        await respond(text=f":white_check_mark: Sold *{amount}× {symbol}* @ `{price}` = `{earnings}` horsenncy earned")
 
     # ── /blackjack ────────────────────────────────────────────────────────────
 

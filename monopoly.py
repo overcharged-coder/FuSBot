@@ -631,52 +631,53 @@ async def _handle_action(ack, body, client, action):
 async def setup(app):
     _db("CREATE TABLE IF NOT EXISTS games (channel_id TEXT PRIMARY KEY, state_json TEXT)")
 
-    @app.command("/monopoly_start")
-    async def monopoly_start(ack, command, client):
+    @app.command("/monopoly")
+    async def monopoly_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
-        import re as re_mod
-        if channel in _games:
-            await client.chat_postEphemeral(channel=channel, user=uid, text="a game is already running here — use /monopoly_stop first"); return
-        text = (command.get("text") or "").strip()
-        m = re_mod.search(r"<@([A-Z0-9]+)>", text)
-        players = [PlayerSlot(uid)]
-        if m:
-            opponent_id = m.group(1)
-            if opponent_id == uid:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="can't play against yourself"); return
-            players.append(PlayerSlot(opponent_id))
+        parts = (command.get("text") or "").strip().split(None, 1)
+        action = parts[0].lower() if parts else "start"
+        arg = parts[1].strip() if len(parts) > 1 else ""
+
+        if action in ("start", ""):
+            import re as re_mod
+            if channel in _games:
+                await client.chat_postEphemeral(channel=channel, user=uid, text="a game is already running here — use `/monopoly stop` first"); return
+            m = re_mod.search(r"<@([A-Z0-9]+)>", arg)
+            players = [PlayerSlot(uid)]
+            if m:
+                opponent_id = m.group(1)
+                if opponent_id == uid:
+                    await client.chat_postEphemeral(channel=channel, user=uid, text="can't play against yourself"); return
+                players.append(PlayerSlot(opponent_id))
+            else:
+                players.append(PlayerSlot("ai", is_ai=True, ai_name="[AI]"))
+            engine = MonopolyEngine.new_game(players, GameConfig())
+            game = {"engine": engine, "ts": None}; _games[channel] = game; _save(channel, engine)
+            director = MonopolyDirector(engine, {}); director.step_auto_until_choice()
+            ts = await _post_game(client, channel, engine, uid)
+            game["ts"] = ts
+            if engine.s.uid[engine.cur()].is_ai:
+                game["ts"] = await _advance_ai(client, channel, engine, uid, ts)
+
+        elif action == "stop":
+            _delete(channel); _games.pop(channel, None)
+            await client.chat_postMessage(channel=channel, text="monopoly game stopped")
+
+        elif action == "resume":
+            if channel in _games:
+                await client.chat_postEphemeral(channel=channel, user=uid, text="a game is already active here"); return
+            state = _load(channel)
+            if not state:
+                await client.chat_postEphemeral(channel=channel, user=uid, text="no saved monopoly game in this channel"); return
+            engine = MonopolyEngine(state, GameConfig()); game = {"engine": engine, "ts": None}; _games[channel] = game
+            ts = await _post_game(client, channel, engine, uid)
+            game["ts"] = ts
+            if engine.s.uid[engine.cur()].is_ai:
+                game["ts"] = await _advance_ai(client, channel, engine, uid, ts)
+
         else:
-            players.append(PlayerSlot("ai", is_ai=True, ai_name="[AI]"))
-        engine = MonopolyEngine.new_game(players, GameConfig())
-        game = {"engine": engine, "ts": None}; _games[channel] = game; _save(channel, engine)
-        director = MonopolyDirector(engine, {}); director.step_auto_until_choice()
-        ts = await _post_game(client, channel, engine, uid)
-        game["ts"] = ts
-        if engine.s.uid[engine.cur()].is_ai:
-            game["ts"] = await _advance_ai(client, channel, engine, uid, ts)
-
-    @app.command("/monopoly_stop")
-    async def monopoly_stop(ack, command, client):
-        await ack()
-        channel = command["channel_id"]; uid = command["user_id"]
-        _delete(channel); _games.pop(channel, None)
-        await client.chat_postMessage(channel=channel, text="monopoly game stopped")
-
-    @app.command("/monopoly_resume")
-    async def monopoly_resume(ack, command, client):
-        await ack()
-        channel = command["channel_id"]; uid = command["user_id"]
-        if channel in _games:
-            await client.chat_postEphemeral(channel=channel, user=uid, text="a game is already active here"); return
-        state = _load(channel)
-        if not state:
-            await client.chat_postEphemeral(channel=channel, user=uid, text="no saved monopoly game in this channel"); return
-        engine = MonopolyEngine(state, GameConfig()); game = {"engine": engine, "ts": None}; _games[channel] = game
-        ts = await _post_game(client, channel, engine, uid)
-        game["ts"] = ts
-        if engine.s.uid[engine.cur()].is_ai:
-            game["ts"] = await _advance_ai(client, channel, engine, uid, ts)
+            await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/monopoly [start [@opponent] | stop | resume]`")
 
     @app.action("mono_roll")
     async def mono_roll(ack, body, client): await _handle_action(ack, body, client, "roll")
