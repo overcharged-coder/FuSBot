@@ -902,6 +902,12 @@ async def handle_message(event, say, client, context):
     bot_mentioned = bool(bot_user_id and f"<@{bot_user_id}>" in text)
     alias_mentioned = mentions_fusbot(text)
     mentioned = bot_mentioned or alias_mentioned
+    # in the restricted workspace, only reply freely in the designated channel
+    _allowed_team = os.getenv("ALLOWED_TEAM_ID", "")
+    _allowed_channel = os.getenv("ALLOWED_CHANNEL_ID", "")
+    if _allowed_team and team_id == _allowed_team and channel_id != _allowed_channel:
+        if not mentioned:
+            return
 
     # auto-roast when mentioned in auto-roast channel
     if mentioned and auto_roast.get(channel_id):
