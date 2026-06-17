@@ -3,6 +3,10 @@ from dataclasses import dataclass
 
 
 _MENTION_RE = re.compile(r"<@([A-Z0-9]+)>")
+_ROAST_COMMAND_RE = re.compile(
+    r"^\s*(please\s+)?(roast|cook|flame|destroy|smoke|pack|clown|violate)\b\s*",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -20,6 +24,18 @@ def strip_slack_mentions(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _clean_roast_context(text: str) -> str:
+    context = strip_slack_mentions(text)
+    context = re.sub(r"\bfusbot\b", "", context, flags=re.IGNORECASE)
+    context = re.sub(r"\s+", " ", context).strip()
+    while True:
+        cleaned = _ROAST_COMMAND_RE.sub("", context).strip()
+        if cleaned == context:
+            break
+        context = cleaned
+    return context
+
+
 def build_roast_request(text: str, teller_user_id: str, bot_user_id: str = "") -> RoastRequest:
     target_ids = [
         uid for uid in parse_slack_mentions(text)
@@ -28,22 +44,13 @@ def build_roast_request(text: str, teller_user_id: str, bot_user_id: str = "") -
     if not target_ids:
         target_ids = [teller_user_id]
 
-    clean_prompt = strip_slack_mentions(text)
-    if bot_user_id:
-        clean_prompt = re.sub(r"\bfusbot\b", "", clean_prompt, flags=re.IGNORECASE)
-        clean_prompt = re.sub(r"\s+", " ", clean_prompt).strip()
-
+    clean_prompt = _clean_roast_context(text)
     target_list = ", ".join(f"<@{uid}>" for uid in target_ids)
-    target_is_teller = target_ids == [teller_user_id]
-    target_guard = (
-        "The requester is the target."
-        if target_is_teller
-        else "Do not roast the requester; roast only the listed target user(s)."
-    )
+    target_guard = "Write one short roast addressed only to this target. Do not joke about the instruction, prompt, or roast quality."
     if clean_prompt:
-        prompt = f"Roast the target user(s): {target_list}. {target_guard} Request context: {clean_prompt}"
+        prompt = f"Target to roast: {target_list}. {target_guard} Target detail: {clean_prompt}"
     else:
-        prompt = f"Roast the target user(s): {target_list}. {target_guard}"
+        prompt = f"Target to roast: {target_list}. {target_guard}"
     return RoastRequest(target_user_ids=target_ids, prompt=prompt)
 
 
