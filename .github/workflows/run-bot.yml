@@ -43,7 +43,10 @@ jobs:
 
       - name: Install dependencies
         run: pip install -r requirements.txt
-
+        
+      - name: Install libclang
+        run: pip install libclang
+          
       - name: Run Slack Bot
         run: |
           echo "Starting bot..."
