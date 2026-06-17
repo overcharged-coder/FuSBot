@@ -34,7 +34,7 @@ def find_listing(listing_id: int):
 
 async def setup(app):
 
-    @app.command("/auction")
+    @app.command("/fus_auction")
     async def auction_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
@@ -45,7 +45,7 @@ async def setup(app):
         if action == "sell":
             sub = arg.split()
             if len(sub) < 3:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/auction sell <item> <amount> <price_each>`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_auction sell <item> <amount> <price_each>`"); return
             item_name = sub[0]
             try:
                 amount = int(sub[1]); price_each = int(sub[2])
@@ -80,7 +80,7 @@ async def setup(app):
                 msg = (
                     f":shopping_trolley: *Auction House* — {len(all_listings)} active listing(s)\n\n"
                     + "\n".join(lines)
-                    + "\n\n_use `/auction buy <id>` to buy or `/auction cancel <id>` to cancel your own listing_"
+                    + "\n\n_use `/fus_auction buy <id>` to buy or `/fus_auction cancel <id>` to cancel your own listing_"
                 )
             await client.chat_postMessage(channel=channel, text=msg[:3000])
 
@@ -88,7 +88,7 @@ async def setup(app):
             try:
                 listing_id = int(arg)
             except ValueError:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/auction buy <listing_id>`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_auction buy <listing_id>`"); return
             clean_listings(); listing = find_listing(listing_id)
             if not listing:
                 await client.chat_postEphemeral(channel=channel, user=uid, text="that listing doesnt exist"); return
@@ -110,7 +110,7 @@ async def setup(app):
             try:
                 listing_id = int(arg)
             except ValueError:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/auction cancel <listing_id>`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_auction cancel <listing_id>`"); return
             clean_listings(); listing = find_listing(listing_id)
             if not listing:
                 await client.chat_postEphemeral(channel=channel, user=uid, text="that listing doesnt exist"); return

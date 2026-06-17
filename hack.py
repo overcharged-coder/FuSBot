@@ -587,13 +587,13 @@ async def setup(app):
         final_text = _engine.build_final_text(uid, target, modules, profile, difficulty, target_profile, phases, outcome, progression, lore, chaos_level)
         await client.chat_update(channel=channel, ts=ts, text=final_text)
 
-    @app.command("/hack")
+    @app.command("/fus_hack")
     async def hack(ack, command, client, respond):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
         args = (command.get("text") or "").split()
         if not args:
-            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/hack <target> [difficulty=2] [chaos=0]` | `/hack profile` | `/hack targets` | `/hack state` | `/hack chaos <target>`")
+            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/fus_hack <target> [difficulty=2] [chaos=0]` | `/fus_hack profile` | `/fus_hack targets` | `/fus_hack state` | `/fus_hack chaos <target>`")
         sub = args[0].lower()
 
         if sub == "profile":
@@ -610,7 +610,7 @@ async def setup(app):
         elif sub == "targets":
             space = _engine.get_target_space()
             if not space:
-                return await respond(text="No targets yet. Run `/hack <target>` first.", response_type="ephemeral")
+                return await respond(text="No targets yet. Run `/fus_hack <target>` first.", response_type="ephemeral")
             lines = [f"• {t['name']} d={t['difficulty']} {t['wins']}W/{t['losses']}L sec={t['security_integrity']:.0f}" for t in list(space.values())[:30]]
             await respond(text="*Known Targets:*\n" + "\n".join(lines))
 
@@ -622,7 +622,7 @@ async def setup(app):
 
         elif sub == "chaos":
             if len(args) < 2:
-                return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/hack chaos <target> [difficulty=3]`")
+                return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/fus_hack chaos <target> [difficulty=3]`")
             target = args[1]; difficulty = 3
             for a in args[2:]:
                 if a.startswith("difficulty="): difficulty = int(a.split("=", 1)[1])

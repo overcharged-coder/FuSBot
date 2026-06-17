@@ -279,7 +279,7 @@ async def _invasion(uid, d, world):
 
 async def setup(app):
 
-    @app.command("/dungeon")
+    @app.command("/fus_dungeon")
     async def dungeon_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
@@ -306,7 +306,7 @@ async def setup(app):
         channel = sess["channel"]; ts = sess["ts"]
         user = get_user(uid); d = user.get("dungeon", {}); world = _init_world()
         if not d.get("active"):
-            await client.chat_update(channel=channel, ts=ts, text="This dungeon run has ended. Use /dungeon to start a new run.", blocks=[])
+            await client.chat_update(channel=channel, ts=ts, text="This dungeon run has ended. Use /fus_dungeon to start a new run.", blocks=[])
             return
         result = await action_fn(uid, d, world)
         new_d, death_msg, dead = result

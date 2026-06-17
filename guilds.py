@@ -31,7 +31,7 @@ def guild_power(guild_data: dict) -> int:
 
 async def setup(app):
 
-    @app.command("/guild")
+    @app.command("/fus_guild")
     async def guild_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
@@ -42,7 +42,7 @@ async def setup(app):
         if action == "create":
             name = arg
             if not name or len(name) < 3 or len(name) > 32:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/guild create <name>` (3-32 chars)"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_guild create <name>` (3-32 chars)"); return
             if user_guild_id(uid):
                 await client.chat_postEphemeral(channel=channel, user=uid, text="youre already in a guild"); return
             root = guild_root(); gid = root["next_id"]; root["next_id"] += 1
@@ -57,7 +57,7 @@ async def setup(app):
             try:
                 gid = int(arg)
             except ValueError:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/guild join <guild_id>`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_guild join <guild_id>`"); return
             if user_guild_id(uid):
                 await client.chat_postEphemeral(channel=channel, user=uid, text="leave your current guild first"); return
             guild_data = get_guild(gid)
@@ -93,7 +93,7 @@ async def setup(app):
             if not gid:
                 gid = user_guild_id(uid)
             if not gid:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="youre not in a guild — use `/guild create <name>` or `/guild join <id>`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="youre not in a guild — use `/fus_guild create <name>` or `/fus_guild join <id>`"); return
             guild_data = get_guild(gid)
             if not guild_data:
                 await client.chat_postEphemeral(channel=channel, user=uid, text="that guild doesnt exist"); return
@@ -118,7 +118,7 @@ async def setup(app):
                 amount = int(arg)
                 if amount < 1: raise ValueError
             except ValueError:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/guild deposit <amount>`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_guild deposit <amount>`"); return
             gid = user_guild_id(uid)
             if not gid:
                 await client.chat_postEphemeral(channel=channel, user=uid, text="youre not in a guild"); return

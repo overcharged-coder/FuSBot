@@ -259,13 +259,13 @@ def _finish_game(channel_id: str, game: dict, winner_idx: int | None):
 async def setup(app):
     _ensure_db()
 
-    @app.command("/battleship")
+    @app.command("/fus_battleship")
     async def battleship_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
         text = (command.get("text") or "").strip()
         if channel in _games:
-            await client.chat_postEphemeral(channel=channel, user=uid, text="a game is already running here — use `/bs_status` to see the board"); return
+            await client.chat_postEphemeral(channel=channel, user=uid, text="a game is already running here — use `/fus_bs status` to see the board"); return
         import re as re_mod
         m = re_mod.search(r"<@([A-Z0-9]+)(?:\|[^>]+)?>", text)
         is_ai = False; ai_diff = "normal"; opponent_id = None
@@ -295,11 +295,11 @@ async def setup(app):
             opponent_text = f"playing vs AI ({ai_diff})"
         else:
             opponent_text = f"playing vs <@{opponent_id}>"
-        await client.chat_postMessage(channel=channel, text=f":anchor: *Battleship* started! {opponent_text}\n\nBoth players: place your ships using `/bs place <col><row> <r|d>`\n*Ship sizes:* 5, 4, 3, 3, 2 — place them one at a time in that order\n\nExample: `/bs place A0 r` places next ship starting at A0 going right\n\n{uid}: you go first. Place your 5-length ship.")
+        await client.chat_postMessage(channel=channel, text=f":anchor: *Battleship* started! {opponent_text}\n\nBoth players: place your ships using `/fus_bs place <col><row> <r|d>`\n*Ship sizes:* 5, 4, 3, 3, 2 — place them one at a time in that order\n\nExample: `/fus_bs place A0 r` places next ship starting at A0 going right\n\n{uid}: you go first. Place your 5-length ship.")
         if not is_ai:
-            await client.chat_postMessage(channel=channel, text=f"<@{opponent_id}>: place your 5-length ship using `/bs place <col><row> <r|d>` in this channel.")
+            await client.chat_postMessage(channel=channel, text=f"<@{opponent_id}>: place your 5-length ship using `/fus_bs place <col><row> <r|d>` in this channel.")
 
-    @app.command("/bs")
+    @app.command("/fus_bs")
     async def bs_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
@@ -320,7 +320,7 @@ async def setup(app):
                 await client.chat_postEphemeral(channel=channel, user=uid, text="you've already placed all your ships"); return
             sub_parts = arg.split()
             if not sub_parts:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/bs place <col><row> [r|d]`  e.g. `/bs place B3 r`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_bs place <col><row> [r|d]`  e.g. `/fus_bs place B3 r`"); return
             coord_str = sub_parts[0]; direction = (sub_parts[1].lower() if len(sub_parts) > 1 else "r")
             if direction not in ("r", "d"):
                 await client.chat_postEphemeral(channel=channel, user=uid, text="direction must be `r` (horizontal) or `d` (vertical)"); return
@@ -340,13 +340,13 @@ async def setup(app):
             if all(game["setup_progress"][i] >= len(SHIP_SIZES) for i, s in enumerate(game["slots"]) if not s.is_ai):
                 game["phase"] = "battle"; game["turn"] = 0; _save_game(channel, game)
                 cur_slot = game["slots"][0]
-                await client.chat_postMessage(channel=channel, text=f":crossed_swords: *Battle!* All ships placed.\n<@{cur_slot.user_id}>: your turn. Use `/bs fire <col><row>` to fire.")
+                await client.chat_postMessage(channel=channel, text=f":crossed_swords: *Battle!* All ships placed.\n<@{cur_slot.user_id}>: your turn. Use `/fus_bs fire <col><row>` to fire.")
             else:
                 _save_game(channel, game)
                 other_pidx = 1 - pidx
                 if not game["slots"][other_pidx].is_ai and game["setup_progress"][other_pidx] < len(SHIP_SIZES):
                     next_size = SHIP_SIZES[game["setup_progress"][other_pidx]]
-                    await client.chat_postMessage(channel=channel, text=f"<@{game['slots'][other_pidx].user_id}>: place your {next_size}-length ship using `/bs place <col><row> <r|d>`")
+                    await client.chat_postMessage(channel=channel, text=f"<@{game['slots'][other_pidx].user_id}>: place your {next_size}-length ship using `/fus_bs place <col><row> <r|d>`")
 
         elif action == "fire":
             game = _games.get(channel)
@@ -381,7 +381,7 @@ async def setup(app):
                 await _run_ai_turn(client, channel, game)
             else:
                 next_slot = game["slots"][game["turn"]]
-                await client.chat_postMessage(channel=channel, text=f":dart: <@{next_slot.user_id}>'s turn! Use `/bs fire <col><row>`")
+                await client.chat_postMessage(channel=channel, text=f":dart: <@{next_slot.user_id}>'s turn! Use `/fus_bs fire <col><row>`")
 
         elif action in ("status", ""):
             game = _games.get(channel)
@@ -425,7 +425,7 @@ async def setup(app):
             phase = game["phase"]; cur_slot = game["slots"][game["turn"]]
             msg = f"game resumed (phase: `{phase}`)"
             if phase == "battle":
-                msg += ("\nAI is thinking..." if cur_slot.is_ai else f"\n<@{cur_slot.user_id}>'s turn — use `/bs fire <col><row>`")
+                msg += ("\nAI is thinking..." if cur_slot.is_ai else f"\n<@{cur_slot.user_id}>'s turn — use `/fus_bs fire <col><row>`")
             await client.chat_postMessage(channel=channel, text=msg)
             if phase == "battle" and cur_slot.is_ai:
                 await _run_ai_turn(client, channel, game)

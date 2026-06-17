@@ -379,7 +379,7 @@ async def render(uid: str, display_name: str, badge: str, client) -> BytesIO:
 
 
 async def setup(app):
-    @app.command("/badge")
+    @app.command("/fus_badge")
     async def badge_cmd(ack, command, client, respond):
         await ack()
         uid = command["user_id"]

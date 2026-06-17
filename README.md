@@ -105,10 +105,10 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/roast @user` | AI-roast someone using memory + multi-model scoring |
-| `/roastmode fast\|deep\|adjustable\|off` | Set roast style — `off` exits roast mode |
-| `/autor on\|off` | Auto-roast anyone who mentions the bot in this channel |
-| `/data [@user]` | View stored memory profile |
+| `/fus_roast @user` | AI-roast someone using memory + multi-model scoring |
+| `/fus_roastmode fast\|deep\|adjustable\|off` | Set roast style — `off` exits roast mode |
+| `/fus_autor on\|off` | Auto-roast anyone who mentions the bot in this channel |
+| `/fus_data [@user]` | View stored memory profile |
 
 </details>
 
@@ -117,16 +117,16 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/balance [@user]` | Check balance |
-| `/daily` | Claim daily reward |
-| `/work` | Work a job for horsenncy |
-| `/give @user amount` | Transfer horsenncy |
-| `/pray` | Gain a prayer boost |
-| `/leaderboard` | Top 10 richest |
-| `/coinflip amount [heads\|tails]` | 50/50 gamble |
-| `/blackjack amount` | Full blackjack game |
-| `/slots amount` | 3×3 slot machine |
-| `/crime` | High-risk heist |
+| `/fus_balance [@user]` | Check balance |
+| `/fus_daily` | Claim daily reward |
+| `/fus_work` | Work a job for horsenncy |
+| `/fus_give @user amount` | Transfer horsenncy |
+| `/fus_pray` | Gain a prayer boost |
+| `/fus_leaderboard` | Top 10 richest |
+| `/fus_coinflip amount [heads\|tails]` | 50/50 gamble |
+| `/fus_blackjack amount` | Full blackjack game |
+| `/fus_slots amount` | 3×3 slot machine |
+| `/fus_crime` | High-risk heist |
 
 </details>
 
@@ -135,10 +135,10 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/shop` | Browse all items |
-| `/buy item [amount]` | Purchase an item |
-| `/inventory [@user]` | View items |
-| `/use item` | Use an item |
+| `/fus_shop` | Browse all items |
+| `/fus_buy item [amount]` | Purchase an item |
+| `/fus_inventory [@user]` | View items |
+| `/fus_use item` | Use an item |
 
 </details>
 
@@ -147,9 +147,9 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/stocks` | View market prices and your portfolio |
-| `/stocks buy SYMBOL amount` | Buy shares |
-| `/stocks sell SYMBOL amount` | Sell shares |
+| `/fus_stocks` | View market prices and your portfolio |
+| `/fus_stocks buy SYMBOL amount` | Buy shares |
+| `/fus_stocks sell SYMBOL amount` | Sell shares |
 
 </details>
 
@@ -158,10 +158,10 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/hunt` | Hunt one of 130+ creatures |
-| `/fish` | Fish for aquatic creatures |
-| `/battle [@user]` | Fight a monster or player |
-| `/team list\|add\|remove` | Manage your battle team |
+| `/fus_hunt` | Hunt one of 130+ creatures |
+| `/fus_fish` | Fish for aquatic creatures |
+| `/fus_battle [@user]` | Fight a monster or player |
+| `/fus_team list\|add\|remove` | Manage your battle team |
 
 </details>
 
@@ -170,12 +170,12 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/dungeon` | Enter the dungeon RPG |
-| `/voidmaze` | Enter the void maze roguelite |
-| `/arena` | Enter the auto-battler arena |
-| `/arena buy might\|haste\|ward\|luck` | Buy an arena upgrade with crowns |
-| `/arena setteam name1, name2, …` | Set your arena team (up to 5) |
-| `/lab` | Enter the research lab |
+| `/fus_dungeon` | Enter the dungeon RPG |
+| `/fus_voidmaze` | Enter the void maze roguelite |
+| `/fus_arena` | Enter the auto-battler arena |
+| `/fus_arena buy might\|haste\|ward\|luck` | Buy an arena upgrade with crowns |
+| `/fus_arena setteam name1, name2, …` | Set your arena team (up to 5) |
+| `/fus_lab` | Enter the research lab |
 
 </details>
 
@@ -184,17 +184,17 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/hack <target>` | Run a 4-phase hacking sim |
-| `/hack profile [@user]` | View hack stats |
-| `/hack targets` | List available targets |
-| `/hack chaos <target>` | Trigger chaos hack (max difficulty) |
-| `/hack state` | View current chaos resonance |
-| `/code new <file>` | Create a code file |
-| `/code edit <file>` | Edit a file via modal |
-| `/code view <file>` | View a file |
-| `/code list` | List your files |
-| `/code delete <file>` | Delete a file |
-| `/code run <file>` | Run a file |
+| `/fus_hack <target>` | Run a 4-phase hacking sim |
+| `/fus_hack profile [@user]` | View hack stats |
+| `/fus_hack targets` | List available targets |
+| `/fus_hack chaos <target>` | Trigger chaos hack (max difficulty) |
+| `/fus_hack state` | View current chaos resonance |
+| `/fus_code new <file>` | Create a code file |
+| `/fus_code edit <file>` | Edit a file via modal |
+| `/fus_code view <file>` | View a file |
+| `/fus_code list` | List your files |
+| `/fus_code delete <file>` | Delete a file |
+| `/fus_code run <file>` | Run a file |
 
 </details>
 
@@ -203,14 +203,14 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/battleship [@user \| ai diff]` | Start a game |
-| `/bs place A0 r\|d` | Place your next ship |
-| `/bs fire B5` | Fire at a coordinate |
-| `/bs status` | View your boards |
-| `/bs forfeit` | Forfeit |
-| `/bs resume` | Resume a saved game |
-| `/bs stats [@user]` | Win/loss/ELO stats |
-| `/bs leaderboard` | ELO leaderboard |
+| `/fus_battleship [@user \| ai diff]` | Start a game |
+| `/fus_bs place A0 r\|d` | Place your next ship |
+| `/fus_bs fire B5` | Fire at a coordinate |
+| `/fus_bs status` | View your boards |
+| `/fus_bs forfeit` | Forfeit |
+| `/fus_bs resume` | Resume a saved game |
+| `/fus_bs stats [@user]` | Win/loss/ELO stats |
+| `/fus_bs leaderboard` | ELO leaderboard |
 
 </details>
 
@@ -219,9 +219,9 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/monopoly start [@opponent]` | Start a game (vs player or AI) |
-| `/monopoly stop` | End the current game |
-| `/monopoly resume` | Resume a saved game |
+| `/fus_monopoly start [@opponent]` | Start a game (vs player or AI) |
+| `/fus_monopoly stop` | End the current game |
+| `/fus_monopoly resume` | Resume a saved game |
 
 </details>
 
@@ -230,16 +230,16 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/guild create name` | Create a guild |
-| `/guild join id` | Join a guild |
-| `/guild leave` | Leave your guild |
-| `/guild info [id]` | View guild info |
-| `/guild deposit amount` | Deposit to guild bank |
-| `/guild upgrade` | Upgrade guild level |
-| `/auction sell item amount price` | List an item |
-| `/auction browse` | Browse listings |
-| `/auction buy id` | Buy a listing |
-| `/auction cancel id` | Cancel your listing |
+| `/fus_guild create name` | Create a guild |
+| `/fus_guild join id` | Join a guild |
+| `/fus_guild leave` | Leave your guild |
+| `/fus_guild info [id]` | View guild info |
+| `/fus_guild deposit amount` | Deposit to guild bank |
+| `/fus_guild upgrade` | Upgrade guild level |
+| `/fus_auction sell item amount price` | List an item |
+| `/fus_auction browse` | Browse listings |
+| `/fus_auction buy id` | Buy a listing |
+| `/fus_auction cancel id` | Cancel your listing |
 
 </details>
 
@@ -248,14 +248,14 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/quests [@user]` | View daily quest board |
-| `/quests claim slot` | Claim a completed quest |
-| `/profile [@user]` | View full profile |
-| `/profile achievements [@user]` | View achievement progress |
-| `/profile collections [@user]` | View collector stats |
-| `/titles [@user]` | View unlocked titles |
-| `/titles equip title` | Equip a title |
-| `/badge [@user]` | View badges |
+| `/fus_quests [@user]` | View daily quest board |
+| `/fus_quests claim slot` | Claim a completed quest |
+| `/fus_profile [@user]` | View full profile |
+| `/fus_profile achievements [@user]` | View achievement progress |
+| `/fus_profile collections [@user]` | View collector stats |
+| `/fus_titles [@user]` | View unlocked titles |
+| `/fus_titles equip title` | Equip a title |
+| `/fus_badge [@user]` | View badges |
 
 </details>
 
@@ -264,14 +264,14 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/automod` | View current settings |
-| `/automod on\|off` | Enable or disable automod |
-| `/automod reset @user` | Reset a user's offence count |
-| `/automod punishment level action` | Set punishment for a level |
-| `/automod slurs list\|add\|remove` | Manage slur filter |
-| `/automod spam setting value` | Configure spam thresholds |
-| `/automod filters name on\|off` | Toggle a filter |
-| `/automod settings key value` | Adjust misc settings |
+| `/fus_automod` | View current settings |
+| `/fus_automod on\|off` | Enable or disable automod |
+| `/fus_automod reset @user` | Reset a user's offence count |
+| `/fus_automod punishment level action` | Set punishment for a level |
+| `/fus_automod slurs list\|add\|remove` | Manage slur filter |
+| `/fus_automod spam setting value` | Configure spam thresholds |
+| `/fus_automod filters name on\|off` | Toggle a filter |
+| `/fus_automod settings key value` | Adjust misc settings |
 
 </details>
 
@@ -280,16 +280,16 @@ The bot runs on GitHub Actions on a 6-hour cron. When the job ends, state files 
 
 | Command | Description |
 |---|---|
-| `/aki` | Play Akinator |
-| `/animal` | Random animal fact |
-| `/emojimixup` | Mix up emoji meanings |
-| `/rave` | Start a rave |
-| `/rave bg <key>` | Set rave background video |
-| `/img prompt` | Generate an image |
-| `/afk [message]` | Set AFK status |
-| `/recommend` | Get a personalised activity suggestion |
-| `/help [topic\|start]` | Help guide — use `start` for the beginner guide |
-| `/setup view\|channel\|tips\|post\|reset` | Workspace setup |
+| `/fus_aki` | Play Akinator |
+| `/fus_animal` | Random animal fact |
+| `/fus_emojimixup` | Mix up emoji meanings |
+| `/fus_rave` | Start a rave |
+| `/fus_rave bg <key>` | Set rave background video |
+| `/fus_img prompt` | Generate an image |
+| `/fus_afk [message]` | Set AFK status |
+| `/fus_recommend` | Get a personalised activity suggestion |
+| `/fus_help [topic\|start]` | Help guide — use `start` for the beginner guide |
+| `/fus_setup view\|channel\|tips\|post\|reset` | Workspace setup |
 
 </details>
 

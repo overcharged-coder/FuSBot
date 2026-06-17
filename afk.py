@@ -20,7 +20,7 @@ def _ts_to_relative(unix_ts: int) -> str:
 async def setup(app):
     state.setdefault("afk", {})
 
-    @app.command("/afk")
+    @app.command("/fus_afk")
     async def afk_cmd(ack, command, respond):
         await ack()
         uid = command["user_id"]

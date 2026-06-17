@@ -310,7 +310,7 @@ async def _do_room(uid, vm, world, room_type, client, channel, ts):
 
 async def setup(app):
 
-    @app.command("/voidmaze")
+    @app.command("/fus_voidmaze")
     async def voidmaze_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]

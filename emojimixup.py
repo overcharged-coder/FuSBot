@@ -140,13 +140,13 @@ async def _do_mix(client, uid: str, channel: str, ts: str | None, a: str, b: str
 async def setup(app):
     _load()
 
-    @app.command("/emojimixup")
+    @app.command("/fus_emojimixup")
     async def emojimixup(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
         args = (command.get("text") or "").split()
         if len(args) < 2:
-            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/emojimixup emoji1 emoji2`")
+            return await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/fus_emojimixup emoji1 emoji2`")
         a, b = args[0], args[1]
         if not _emojis:
             return await client.chat_postEphemeral(channel=channel, user=uid, text=":x: emojis.txt not found.")

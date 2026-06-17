@@ -57,7 +57,7 @@ def unlocked_titles(uid: str):
 
 async def setup(app):
 
-    @app.command("/titles")
+    @app.command("/fus_titles")
     async def titles_cmd(ack, command, client):
         await ack()
         import re as re_mod
@@ -70,7 +70,7 @@ async def setup(app):
         if action == "equip":
             title_input = arg
             if not title_input:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/titles equip <title name>`"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_titles equip <title name>`"); return
             data = get_user(uid); titles = unlocked_titles(uid); wanted = normalize(title_input)
             match = next((t for t in titles if normalize(t) == wanted), None)
             if not match:
@@ -89,6 +89,6 @@ async def setup(app):
                 f":medal: *{mention}'s Titles*\n"
                 f"equipped: `{equipped}`\n"
                 f"unlocked: `{len(titles)}`\n\n"
-                f"{lines}\n\n_use `/titles equip <title>` to equip one_"
+                f"{lines}\n\n_use `/fus_titles equip <title>` to equip one_"
             )
             await client.chat_postMessage(channel=channel, text=msg)

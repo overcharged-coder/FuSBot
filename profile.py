@@ -182,7 +182,7 @@ def _build_profile_text(uid: str, data: dict, display_name: str) -> str:
 
 async def setup(app):
 
-    @app.command("/profile")
+    @app.command("/fus_profile")
     async def profile(ack, command, client, respond):
         await ack()
         import re as re_mod

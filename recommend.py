@@ -244,7 +244,7 @@ def _make_recommend_blocks(user_id: str, recs: list[dict]) -> list[dict]:
 
 
 async def setup(app):
-    @app.command("/recommend")
+    @app.command("/fus_recommend")
     async def recommend(ack, command, respond):
         await ack()
         uid = command["user_id"]

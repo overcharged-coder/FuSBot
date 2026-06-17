@@ -117,7 +117,7 @@ class QuestBoard:
 
 async def setup(app):
 
-    @app.command("/quests")
+    @app.command("/fus_quests")
     async def quests_cmd(ack, command, client):
         await ack()
         import re as re_mod
@@ -131,7 +131,7 @@ async def setup(app):
             try:
                 slot = int(arg if arg else "0")
             except ValueError:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/quests claim <slot>` (1, 2, or 3)"); return
+                await client.chat_postEphemeral(channel=channel, user=uid, text="usage: `/fus_quests claim <slot>` (1, 2, or 3)"); return
             ok, result = QuestBoard.claim(uid, slot)
             if not ok:
                 await client.chat_postEphemeral(channel=channel, user=uid, text=result); return
@@ -151,6 +151,6 @@ async def setup(app):
             msg = (
                 f":scroll: *{mention}'s Daily Quests*\n"
                 f"day `{today}` • completed `{complete_count}` / `{len(board)}` • claimed `{claimed_count}` / `{len(board)}`\n\n"
-                f"{board_text}\n\n_use `/quests claim <slot>` to claim a finished quest_"
+                f"{board_text}\n\n_use `/fus_quests claim <slot>` to claim a finished quest_"
             )
             await client.chat_postMessage(channel=channel, text=msg[:3000])

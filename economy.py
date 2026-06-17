@@ -245,7 +245,7 @@ async def setup(app):
 
     # ── /balance ──────────────────────────────────────────────────────────────
 
-    @app.command("/balance")
+    @app.command("/fus_balance")
     async def balance(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -260,7 +260,7 @@ async def setup(app):
 
     # ── /stocks ───────────────────────────────────────────────────────────────
 
-    @app.command("/stocks")
+    @app.command("/fus_stocks")
     async def stocks_main(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -269,7 +269,7 @@ async def setup(app):
 
         if action == "buy":
             if len(args) < 3:
-                return await respond(text="Usage: `/stocks buy SYMBOL AMOUNT`", response_type="ephemeral")
+                return await respond(text="Usage: `/fus_stocks buy SYMBOL AMOUNT`", response_type="ephemeral")
             symbol = args[1].upper()
             if symbol not in STOCKS:
                 return await respond(text="Unknown stock symbol.", response_type="ephemeral")
@@ -290,7 +290,7 @@ async def setup(app):
 
         elif action == "sell":
             if len(args) < 3:
-                return await respond(text="Usage: `/stocks sell SYMBOL AMOUNT`", response_type="ephemeral")
+                return await respond(text="Usage: `/fus_stocks sell SYMBOL AMOUNT`", response_type="ephemeral")
             symbol = args[1].upper()
             if symbol not in STOCKS:
                 return await respond(text="Unknown stock.", response_type="ephemeral")
@@ -333,14 +333,14 @@ async def setup(app):
 
     # ── /blackjack ────────────────────────────────────────────────────────────
 
-    @app.command("/blackjack")
+    @app.command("/fus_blackjack")
     async def blackjack(ack, command, client, respond):
         await ack()
         uid = command["user_id"]
         try:
             bet = int((command.get("text") or "").strip())
         except Exception:
-            return await respond(text="Usage: `/blackjack <bet>`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_blackjack <bet>`", response_type="ephemeral")
         if bet <= 0:
             return await respond(text="Bet must be positive.", response_type="ephemeral")
         balance = await get_balance(uid)
@@ -429,7 +429,7 @@ async def setup(app):
 
     # ── /daily ────────────────────────────────────────────────────────────────
 
-    @app.command("/daily")
+    @app.command("/fus_daily")
     async def daily(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -447,7 +447,7 @@ async def setup(app):
 
     # ── /give ─────────────────────────────────────────────────────────────────
 
-    @app.command("/give")
+    @app.command("/fus_give")
     async def give(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -455,13 +455,13 @@ async def setup(app):
         text = (command.get("text") or "").strip()
         m = re.search(r"<@([A-Z0-9]+)>", text)
         if not m:
-            return await respond(text="Usage: `/give @user amount`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_give @user amount`", response_type="ephemeral")
         target_id = m.group(1)
         rest = re.sub(r"<@[A-Z0-9]+>", "", text).strip()
         try:
             amount = int(rest)
         except Exception:
-            return await respond(text="Usage: `/give @user amount`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_give @user amount`", response_type="ephemeral")
         if amount <= 0:
             return await respond(text="Amount must be positive.", response_type="ephemeral")
         if uid == target_id:
@@ -475,13 +475,13 @@ async def setup(app):
 
     # ── /coinflip ─────────────────────────────────────────────────────────────
 
-    @app.command("/coinflip")
+    @app.command("/fus_coinflip")
     async def coinflip(ack, command, respond):
         await ack()
         uid = command["user_id"]
         args = (command.get("text") or "").split()
         if len(args) < 2:
-            return await respond(text="Usage: `/coinflip heads|tails amount`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_coinflip heads|tails amount`", response_type="ephemeral")
         side = args[0].lower()
         if side not in ("heads","tails"):
             return await respond(text="Pick heads or tails.", response_type="ephemeral")
@@ -505,7 +505,7 @@ async def setup(app):
 
     # ── /pray ─────────────────────────────────────────────────────────────────
 
-    @app.command("/pray")
+    @app.command("/fus_pray")
     async def pray(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -526,7 +526,7 @@ async def setup(app):
 
     # ── /leaderboard ──────────────────────────────────────────────────────────
 
-    @app.command("/leaderboard")
+    @app.command("/fus_leaderboard")
     async def leaderboard(ack, command, respond):
         await ack()
         users = state.get("users", {})
@@ -538,7 +538,7 @@ async def setup(app):
 
     # ── /team ─────────────────────────────────────────────────────────────────
 
-    @app.command("/team")
+    @app.command("/fus_team")
     async def team_cmd(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -571,11 +571,11 @@ async def setup(app):
                 return await respond(text="Invalid team index.", response_type="ephemeral")
             removed = team.pop(idx); owned.append(removed); save_state()
             return await respond(text=f":x: Removed *{removed['name']}* from team.")
-        await respond(text="Usage: `/team list|add <idx>|remove <idx>`", response_type="ephemeral")
+        await respond(text="Usage: `/fus_team list|add <idx>|remove <idx>`", response_type="ephemeral")
 
     # ── /hunt ─────────────────────────────────────────────────────────────────
 
-    @app.command("/hunt")
+    @app.command("/fus_hunt")
     async def hunt(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -601,7 +601,7 @@ async def setup(app):
 
     # ── /fish ─────────────────────────────────────────────────────────────────
 
-    @app.command("/fish")
+    @app.command("/fus_fish")
     async def fish(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -626,7 +626,7 @@ async def setup(app):
 
     # ── /battle ───────────────────────────────────────────────────────────────
 
-    @app.command("/battle")
+    @app.command("/fus_battle")
     async def battle(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -651,7 +651,7 @@ async def setup(app):
 
     # ── /crime ────────────────────────────────────────────────────────────────
 
-    @app.command("/crime")
+    @app.command("/fus_crime")
     async def crime(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -678,14 +678,14 @@ async def setup(app):
 
     # ── /slots ────────────────────────────────────────────────────────────────
 
-    @app.command("/slots")
+    @app.command("/fus_slots")
     async def slots(ack, command, respond):
         await ack()
         uid = command["user_id"]
         try:
             bet = int((command.get("text") or "").strip())
         except Exception:
-            return await respond(text="Usage: `/slots <bet>`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_slots <bet>`", response_type="ephemeral")
         if bet <= 0:
             return await respond(text="Bet must be positive.", response_type="ephemeral")
         bal = await get_balance(uid)
@@ -728,7 +728,7 @@ async def setup(app):
 
     # ── /work ─────────────────────────────────────────────────────────────────
 
-    @app.command("/work")
+    @app.command("/fus_work")
     async def work(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -752,7 +752,7 @@ async def setup(app):
 
     # ── /shop / /buy / /inventory ─────────────────────────────────────────────
 
-    @app.command("/shop")
+    @app.command("/fus_shop")
     async def shop(ack, command, respond):
         await ack()
         items = state.get("items", {})
@@ -761,13 +761,13 @@ async def setup(app):
         lines = [f"*{item['name']}* — {item['price']} horsenncy | `{item_id}`" for item_id, item in items.items()]
         await respond(text=":shopping_bags: *Shop Items*\n\n" + "\n".join(lines))
 
-    @app.command("/buy")
+    @app.command("/fus_buy")
     async def buy(ack, command, respond):
         await ack()
         uid = command["user_id"]
         item_id = (command.get("text") or "").strip()
         if not item_id:
-            return await respond(text="Usage: `/buy <item_id>`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_buy <item_id>`", response_type="ephemeral")
         user = get_user(uid)
         items = state.get("items", {})
         if item_id not in items:
@@ -781,7 +781,7 @@ async def setup(app):
         save_state()
         await respond(text=f":tada: Received *{item['name']}*! Added to inventory.")
 
-    @app.command("/inventory")
+    @app.command("/fus_inventory")
     async def inventory(ack, command, respond):
         await ack()
         uid = command["user_id"]
@@ -793,13 +793,13 @@ async def setup(app):
         lines = [f"• *{items_data.get(iid, {}).get('name', iid)}* × {qty}" for iid, qty in inv.items() if qty > 0]
         await respond(text=":bag: *Inventory*\n" + "\n".join(lines))
 
-    @app.command("/use")
+    @app.command("/fus_use")
     async def use(ack, command, respond):
         await ack()
         uid = command["user_id"]
         item_id = (command.get("text") or "").strip()
         if not item_id:
-            return await respond(text="Usage: `/use <item_id>`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_use <item_id>`", response_type="ephemeral")
         user = get_user(uid)
         inv = user.get("inventory", {})
         if not inv.get(item_id):

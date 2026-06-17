@@ -632,7 +632,7 @@ def _arena_blocks(uid: str, arena: dict, world: dict, owned: list, current_env: 
 
 async def setup(app):
 
-    @app.command("/arena")
+    @app.command("/fus_arena")
     async def arena_cmd(ack, command, client, respond):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
@@ -649,7 +649,7 @@ async def setup(app):
             }
             item_key = arg.lower()
             if item_key not in items:
-                await respond("Usage: `/arena buy <might|haste|ward|luck>`"); return
+                await respond("Usage: `/fus_arena buy <might|haste|ward|luck>`"); return
             name, cost, key, amount = items[item_key]
             user = get_user(uid); arena = user.setdefault("arena", {})
             arena.setdefault("crowns", 0); arena.setdefault("passives", {})
@@ -661,7 +661,7 @@ async def setup(app):
 
         elif sub == "setteam":
             if not arg:
-                await respond("Usage: `/arena setteam animal1, animal2, ...` (up to 5, comma-separated)"); return
+                await respond("Usage: `/fus_arena setteam animal1, animal2, ...` (up to 5, comma-separated)"); return
             chosen = [s.strip() for s in arg.split(",") if s.strip()][:5]
             user = get_user(uid); arena = user.setdefault("arena", {}); arena["loadout"] = chosen
             arena["last_log"] = f"Team updated: {', '.join(chosen)}"; save_state()
@@ -801,7 +801,7 @@ async def setup(app):
             "luck": ("Lucky Emblem", 4, "crit_boost", 0.03),
         }
         item_lines = "\n".join(f"• *{name}* — {cost} crowns" for _, (name, cost, _, _) in items.items())
-        shop_text = f":medal: *Arena Crown Shop*\nYou have *{arena['crowns']}* crowns.\n\n{item_lines}\n\nUse `/arena_buy <might|haste|ward|luck>` to purchase."
+        shop_text = f":medal: *Arena Crown Shop*\nYou have *{arena['crowns']}* crowns.\n\n{item_lines}\n\nUse `/fus_arena buy <might|haste|ward|luck>` to purchase."
         await client.chat_update(channel=channel, ts=ts, blocks=[
             {"type": "section", "text": {"type": "mrkdwn", "text": shop_text}},
             {"type": "actions", "elements": [

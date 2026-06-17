@@ -87,12 +87,12 @@ async def setup(app):
     global SDXL_VERSION_ID
     SDXL_VERSION_ID = await get_latest_version_id("stability-ai", "sdxl")
 
-    @app.command("/img")
+    @app.command("/fus_img")
     async def img_cmd(ack, command, client, respond):
         await ack()
         prompt = (command.get("text") or "").strip()
         if not prompt:
-            return await respond(text="Usage: `/img <prompt>`", response_type="ephemeral")
+            return await respond(text="Usage: `/fus_img <prompt>`", response_type="ephemeral")
         uid = command["user_id"]
         channel = command["channel_id"]
         await respond(text=f":hourglass: Generating image for *{prompt}*...")

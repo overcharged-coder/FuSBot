@@ -56,7 +56,7 @@ async def _handle_answer(body, client, answer: str):
 
 async def setup(app):
 
-    @app.command("/aki")
+    @app.command("/fus_aki")
     async def aki_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]

@@ -96,7 +96,7 @@ def _get_pad(uid: str) -> dict:
 
 async def setup(app):
 
-    @app.command("/code")
+    @app.command("/fus_code")
     async def code_cmd(ack, command, client, body, respond):
         await ack()
         uid = command["user_id"]
@@ -107,7 +107,7 @@ async def setup(app):
         if action == "new":
             filename = arg
             if not filename:
-                return await respond(text="Usage: `/code new <filename>`", response_type="ephemeral")
+                return await respond(text="Usage: `/fus_code new <filename>`", response_type="ephemeral")
             pad = _get_pad(uid)
             if filename in pad:
                 return await respond(text=":x: File already exists.", response_type="ephemeral")
@@ -117,7 +117,7 @@ async def setup(app):
         elif action == "edit":
             filename = arg
             if not filename:
-                return await respond(text="Usage: `/code edit <filename>`", response_type="ephemeral")
+                return await respond(text="Usage: `/fus_code edit <filename>`", response_type="ephemeral")
             pad = _get_pad(uid)
             if filename not in pad:
                 return await respond(text=":x: File does not exist.", response_type="ephemeral")
@@ -149,7 +149,7 @@ async def setup(app):
         elif action == "view":
             filename = arg
             if not filename:
-                return await respond(text="Usage: `/code view <filename>`", response_type="ephemeral")
+                return await respond(text="Usage: `/fus_code view <filename>`", response_type="ephemeral")
             pad = _get_pad(uid)
             if filename not in pad:
                 return await respond(text=":x: File not found.", response_type="ephemeral")
@@ -167,7 +167,7 @@ async def setup(app):
         elif action == "delete":
             filename = arg
             if not filename:
-                return await respond(text="Usage: `/code delete <filename>`", response_type="ephemeral")
+                return await respond(text="Usage: `/fus_code delete <filename>`", response_type="ephemeral")
             pad = _get_pad(uid)
             if filename not in pad:
                 return await respond(text=":x: File not found.", response_type="ephemeral")
@@ -177,7 +177,7 @@ async def setup(app):
         elif action == "run":
             filename = arg
             if not filename:
-                return await respond(text="Usage: `/code run <filename>`", response_type="ephemeral")
+                return await respond(text="Usage: `/fus_code run <filename>`", response_type="ephemeral")
             pad = _get_pad(uid)
             if filename not in pad:
                 return await respond(text=":x: File not found.", response_type="ephemeral")

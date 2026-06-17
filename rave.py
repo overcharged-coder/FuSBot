@@ -163,7 +163,7 @@ def _session_blocks(uid: str, status: str = "Idle") -> list[dict]:
 
 
 async def setup(app):
-    @app.command("/rave")
+    @app.command("/fus_rave")
     async def rave_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
@@ -174,7 +174,7 @@ async def setup(app):
         if sub == "bg":
             upload_key = arg
             if not upload_key:
-                await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/rave bg <upload_key>` — share a video file and set its key here.")
+                await client.chat_postEphemeral(channel=channel, user=uid, text="Usage: `/fus_rave bg <upload_key>` — share a video file and set its key here.")
                 return
             _sessions.setdefault(uid, {})["upload"] = upload_key
             await client.chat_postEphemeral(channel=channel, user=uid, text=f"Upload key set to `{upload_key}`.")

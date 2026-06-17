@@ -32,7 +32,7 @@ async def _fetch_animal(animal: str) -> dict | None:
 
 
 async def setup(app):
-    @app.command("/animal")
+    @app.command("/fus_animal")
     async def animal_cmd(ack, command, respond):
         await ack()
         text = (command.get("text") or "").strip().lower().replace(" ", "_")

@@ -457,7 +457,7 @@ async def bot_roast(msg, uid, mode):
             scored = sorted(zip(spices, candidates), key=lambda x: abs(x[0] - user_spice))
             return enforce_short_roast(scored[0][1]["text"])
 
-        return "Pick a roast mode with /roastmode fast, deep, or adjustable."
+        return "Pick a roast mode with /fus_roastmode fast, deep, or adjustable."
     except Roast500Error:
         return "Your roast was so powerful it caused a server error."
     except Exception as e:
@@ -770,7 +770,7 @@ def _init_brain(client: AsyncWebClient):
 
 # ── Slash commands ─────────────────────────────────────────────────────────────
 
-@app.command("/roast")
+@app.command("/fus_roast")
 async def roast_cmd(ack, say, command, client):
     await ack()
     text = command.get("text", "").strip()
@@ -796,10 +796,10 @@ async def roast_cmd(ack, say, command, client):
         await say(f"{slack_mention(user_id)} {resp}")
         return
 
-    await say("Use `/roast @User`, `/roast @User1 @User2`, or `/roast your text here`")
+    await say("Use `/fus_roast @User`, `/fus_roast @User1 @User2`, or `/fus_roast your text here`")
 
 
-@app.command("/data")
+@app.command("/fus_data")
 async def data_cmd(ack, respond, command):
     await ack()
     text = command.get("text", "").strip()
@@ -826,7 +826,7 @@ async def data_cmd(ack, respond, command):
     await respond(text_out)
 
 
-@app.command("/autor")
+@app.command("/fus_autor")
 async def autor_cmd(ack, respond, command):
     await ack()
     text = command.get("text", "").strip().lower()
@@ -840,10 +840,10 @@ async def autor_cmd(ack, respond, command):
         save_roast_memory()
         await respond("auto-roast is now off for this channel")
     else:
-        await respond("Usage: `/autor on` or `/autor off`")
+        await respond("Usage: `/fus_autor on` or `/fus_autor off`")
 
 
-@app.command("/roastmode")
+@app.command("/fus_roastmode")
 async def roastmode_cmd(ack, respond, command):
     await ack()
     mode_choice = command.get("text", "").strip().lower()
@@ -860,9 +860,9 @@ async def roastmode_cmd(ack, respond, command):
         roast_mode[user_id] = mode_choice
         roast_history[user_id] = []
         save_roast_memory()
-        await respond(f"🔥 Roast Mode: *{mode_choice.upper()}*. Use `/roastmode off` to stop.")
+        await respond(f"🔥 Roast Mode: *{mode_choice.upper()}*. Use `/fus_roastmode off` to stop.")
     else:
-        await respond("Usage: `/roastmode fast|deep|adjustable|off`")
+        await respond("Usage: `/fus_roastmode fast|deep|adjustable|off`")
 
 
 # ── Message event ─────────────────────────────────────────────────────────────
@@ -880,8 +880,8 @@ async def handle_message(event, say, client, context):
     text = event.get("text", "").strip()
     channel_id = event.get("channel", "")
     ts = event.get("ts", "")
-    team_id = event.get("team", "")
-    enterprise_id = event.get("enterprise_id") or context.get("enterprise_id", "")
+    team_id = context.get("team_id", "") or event.get("team", "")
+    enterprise_id = context.get("enterprise_id", "")
 
     skey = session_key(channel_id, uid)
     convo = ACTIVE_CONVO.get(skey)
@@ -903,11 +903,13 @@ async def handle_message(event, say, client, context):
     bot_mentioned = bool(bot_user_id and f"<@{bot_user_id}>" in text)
     alias_mentioned = mentions_fusbot(text)
     mentioned = bot_mentioned or alias_mentioned
-    # in the restricted workspace, only reply freely in the designated channel
-    _allowed_team = os.getenv("ALLOWED_TEAM_ID", "")
+
+    # restrict to one channel in a specific workspace/enterprise
+    _allowed_workspace = os.getenv("ALLOWED_WORKSPACE_ID", "")
     _allowed_channel = os.getenv("ALLOWED_CHANNEL_ID", "")
-    if _allowed_team and (team_id == _allowed_team or enterprise_id == _allowed_team) and channel_id != _allowed_channel:
-        if not mentioned:
+    if _allowed_workspace and _allowed_channel:
+        in_workspace = (enterprise_id == _allowed_workspace or team_id == _allowed_workspace)
+        if in_workspace and channel_id != _allowed_channel and not mentioned:
             return
 
     # auto-roast when mentioned in auto-roast channel

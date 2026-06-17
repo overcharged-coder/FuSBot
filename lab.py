@@ -46,7 +46,7 @@ async def _refresh(client, channel, ts, uid, lab, world):
 
 async def setup(app):
 
-    @app.command("/lab")
+    @app.command("/fus_lab")
     async def lab_cmd(ack, command, client):
         await ack()
         uid = command["user_id"]; channel = command["channel_id"]
