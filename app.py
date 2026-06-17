@@ -881,6 +881,7 @@ async def handle_message(event, say, client, context):
     channel_id = event.get("channel", "")
     ts = event.get("ts", "")
     team_id = event.get("team", "")
+    enterprise_id = event.get("enterprise_id") or context.get("enterprise_id", "")
 
     skey = session_key(channel_id, uid)
     convo = ACTIVE_CONVO.get(skey)
@@ -905,7 +906,7 @@ async def handle_message(event, say, client, context):
     # in the restricted workspace, only reply freely in the designated channel
     _allowed_team = os.getenv("ALLOWED_TEAM_ID", "")
     _allowed_channel = os.getenv("ALLOWED_CHANNEL_ID", "")
-    if _allowed_team and team_id == _allowed_team and channel_id != _allowed_channel:
+    if _allowed_team and (team_id == _allowed_team or enterprise_id == _allowed_team) and channel_id != _allowed_channel:
         if not mentioned:
             return
 
