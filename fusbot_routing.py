@@ -2,7 +2,7 @@ import re
 from dataclasses import dataclass
 
 
-_MENTION_RE = re.compile(r"<@([A-Z0-9]+)>")
+_MENTION_RE = re.compile(r"<@([A-Z0-9]+)(?:\|[^>]*)?>")
 _ROAST_COMMAND_RE = re.compile(
     r"^\s*(please\s+)?(roast|cook|flame|destroy|smoke|pack|clown|violate)\b\s*",
     flags=re.IGNORECASE,
@@ -22,6 +22,7 @@ def parse_slack_mentions(text: str) -> list[str]:
 def strip_slack_mentions(text: str) -> str:
     text = _MENTION_RE.sub("", text or "")
     return re.sub(r"\s+", " ", text).strip()
+
 
 
 def _clean_roast_context(text: str) -> str:

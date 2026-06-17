@@ -31,11 +31,11 @@ def slack_mention(user_id: str) -> str:
 
 
 def parse_slack_mentions(text: str) -> list[str]:
-    return re.findall(r"<@([A-Z0-9]+)>", text or "")
+    return re.findall(r"<@([A-Z0-9]+)(?:\|[^>]*)?>", text or "")
 
 
 def strip_slack_mentions(text: str) -> str:
-    text = re.sub(r"<@[A-Z0-9]+>", "", text or "")
+    text = re.sub(r"<@[A-Z0-9]+(?:\|[^>]*)?>", "", text or "")
     return re.sub(r"\s+", " ", text).strip()
 
 
