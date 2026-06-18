@@ -811,12 +811,23 @@ async def roast_cmd(ack, say, command, client):
     mention_ids = parse_slack_mentions(text)
 
     # fallback: user typed @name manually without using autocomplete
-    if not mention_ids and text.startswith("@") and " " not in text.strip():
+    typed_at_target = not mention_ids and text.startswith("@") and " " not in text.strip()
+    if typed_at_target:
         resolved = await _resolve_name_to_uid(text, client)
         if resolved:
             mention_ids = [resolved]
 
     log(f"[ROAST] user={user_id} text={text!r} mention_ids={mention_ids}")
+
+    # user tried to mention someone but target couldn't be resolved (bot, unknown user, etc.)
+    if typed_at_target and not mention_ids:
+        name = text.lstrip("@").strip()
+        if name.lower() in ("fusbot", "fus_bot", "fus"):
+            await say("i don't roast myself. that's your job.")
+        else:
+            await say(f"can't find `{text}` — use the @ autocomplete dropdown to pick a real target.")
+        return
+
     if mention_ids:
         out = []
         for uid in mention_ids:
