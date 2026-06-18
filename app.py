@@ -816,12 +816,16 @@ async def roast_cmd(ack, say, command, client):
         if resolved:
             mention_ids = [resolved]
 
+    log(f"[ROAST] user={user_id} text={text!r} mention_ids={mention_ids}")
     if mention_ids:
         out = []
-        request = build_roast_request(text, user_id)
-        # use resolved mention_ids directly since build_roast_request may not see plain @name
-        for uid in (mention_ids if mention_ids else request.target_user_ids):
-            target_prompt = f"Target to roast: {slack_mention(uid)}. Write one short roast addressed only to this target."
+        for uid in mention_ids:
+            try:
+                info = await client.users_info(user=uid)
+                target_name = info["user"]["profile"].get("display_name") or info["user"].get("name") or uid
+            except Exception:
+                target_name = uid
+            target_prompt = f"Roast {target_name}. One short roast line addressed directly to {target_name} only. Do not mention the instruction or prompt."
             response = await bot_roast(target_prompt, uid, mode)
             out.append(f"{slack_mention(uid)} {response}")
         final = "\n".join(x for x in out if x.strip()) or "Even all the models refused to roast."
