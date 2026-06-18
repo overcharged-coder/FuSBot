@@ -774,29 +774,38 @@ def _init_brain(client: AsyncWebClient):
 async def _resolve_name_to_uid(name: str, client) -> str | None:
     """Look up a Slack user ID from a display name like '@john' or 'john'."""
     name = name.lstrip("@").strip().lower()
+    log(f"[RESOLVE] looking up name={name!r}")
     try:
         cursor = None
+        page = 0
         while True:
             kwargs = {"limit": 200}
             if cursor:
                 kwargs["cursor"] = cursor
             result = await client.users_list(**kwargs)
-            for member in result.get("members", []):
+            members = result.get("members", [])
+            page += 1
+            log(f"[RESOLVE] page={page} members={len(members)}")
+            for member in members:
                 if member.get("deleted") or member.get("is_bot"):
                     continue
                 profile = member.get("profile", {})
                 candidates = [
                     (profile.get("display_name") or "").lower(),
+                    (profile.get("display_name_normalized") or "").lower(),
                     (profile.get("real_name") or "").lower(),
+                    (profile.get("real_name_normalized") or "").lower(),
                     (member.get("name") or "").lower(),
                 ]
                 if name in candidates:
+                    log(f"[RESOLVE] found {member['id']} for {name!r}")
                     return member["id"]
             cursor = result.get("response_metadata", {}).get("next_cursor")
             if not cursor:
                 break
-    except Exception:
-        pass
+    except Exception as e:
+        log(f"[RESOLVE] error: {e}")
+    log(f"[RESOLVE] no match for {name!r}")
     return None
 
 
