@@ -487,6 +487,32 @@ async def bot_roast(msg, uid, mode):
         log(f"[ERROR] bot_roast: {e}")
         return "My brain just lagged mid-roast. Try again."
 
+# ── Typing indicator ──────────────────────────────────────────────────────────
+
+async def typing_indicator(channel_id: str, client, coro):
+    """Show 'FuSBot is typing...' while awaiting coro."""
+    stop = asyncio.Event()
+    async def _loop():
+        while not stop.is_set():
+            try:
+                await client.conversations_typing(channel=channel_id)
+            except Exception:
+                pass
+            try:
+                await asyncio.wait_for(asyncio.shield(stop.wait()), timeout=4.0)
+            except asyncio.TimeoutError:
+                pass
+    task = asyncio.create_task(_loop())
+    try:
+        return await coro
+    finally:
+        stop.set()
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
 # ── Chat ───────────────────────────────────────────────────────────────────────
 
 async def bot_chat(msg: str, uid: str, channel_id: str, workspace_id: str = None):
@@ -995,7 +1021,7 @@ async def handle_message(event, say, client, context):
         request = build_roast_request(text, uid, bot_user_id)
         target_uid = request.target_user_ids[0]
         mode = roast_mode.get(uid, "deep")
-        reply = await bot_roast(request.prompt, target_uid, mode)
+        reply = await typing_indicator(channel_id, client, bot_roast(request.prompt, target_uid, mode))
         if reply:
             await say(f"{slack_mention(target_uid)} {reply}")
             LAST_BOT_MESSAGE[skey] = reply
@@ -1015,7 +1041,7 @@ async def handle_message(event, say, client, context):
         if not is_followup:
             is_followup = await ai_is_followup(last_bot, text)
         if is_followup:
-            reply = await bot_chat(text, uid, channel_id, team_id)
+            reply = await typing_indicator(channel_id, client, bot_chat(text, uid, channel_id, team_id))
             if reply:
                 await say(reply)
                 LAST_BOT_MESSAGE[skey] = reply
