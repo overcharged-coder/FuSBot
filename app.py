@@ -133,7 +133,6 @@ FAUCET_MODELS = ["faucet:dsv4-fast", "faucet:l4-maverick", "faucet:k2.6-fast", "
 OPENAI_MODELS = []
 OPENROUTER_MODELS = []
 NORMAL_CHAT_MODELS = [
-    "faucet:k2.6-fast", "faucet:dsv4-fast", "faucet:gpt-oss-fast",
     "groq:llama-3.1-8b-instant", "gemini-2.0-flash", "gemini-2.0-pro",
     "github:gpt-4o-mini", "openai:gpt-4o-mini", "openai:gpt-4o"
 ]
@@ -491,28 +490,21 @@ async def bot_roast(msg, uid, mode):
 # ── Typing indicator ──────────────────────────────────────────────────────────
 
 async def typing_indicator(channel_id: str, client, coro):
-    """Show 'FuSBot is typing...' while awaiting coro."""
-    stop = asyncio.Event()
-    async def _loop():
-        while not stop.is_set():
-            try:
-                await client.conversations_typing(channel=channel_id)
-            except Exception:
-                pass
-            try:
-                await asyncio.wait_for(asyncio.shield(stop.wait()), timeout=4.0)
-            except asyncio.TimeoutError:
-                pass
-    task = asyncio.create_task(_loop())
+    """Post a '...' placeholder so users see activity, delete it once done."""
+    placeholder_ts = None
+    try:
+        result = await client.chat_postMessage(channel=channel_id, text="...")
+        placeholder_ts = result.get("ts")
+    except Exception as e:
+        log(f"[TYPING] placeholder post failed: {e}")
     try:
         return await coro
     finally:
-        stop.set()
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        if placeholder_ts:
+            try:
+                await client.chat_delete(channel=channel_id, ts=placeholder_ts)
+            except Exception as e:
+                log(f"[TYPING] placeholder delete failed: {e}")
 
 # ── Chat ───────────────────────────────────────────────────────────────────────
 
