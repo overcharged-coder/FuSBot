@@ -88,8 +88,8 @@ def _get_pad(uid: str) -> dict:
             changed = True
         else:
             changed = True
+    state["codepad"][uid] = normalized
     if changed:
-        state["codepad"][uid] = normalized
         save_state()
     return normalized
 
