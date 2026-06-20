@@ -206,4 +206,3 @@ async def setup(app):
         uid, filename = parts
         new_code = body["view"]["state"]["values"]["code_block"]["code_input"]["value"] or ""
         pad = _get_pad(uid); pad[filename] = new_code; save_state()
-        await client.chat_postMessage(channel=uid, text=f":pencil2: Updated *{filename}*.")
